@@ -255,14 +255,17 @@ export default function App() {
 
                   {/* Navigation Links */}
                   <nav className="flex flex-col gap-1">
-                    {[
+                    {(userRole === "admin"
+                      ? [{ id: "admin", label: "Admin Dashboard 🛠️", icon: <Shield size={18} /> }]
+                      : []
+                    ).concat([
                       { id: "home", label: t("nav_home"), icon: <HomeIcon size={18} /> },
                       { id: "academic", label: t("nav_academic"), icon: <TrendingUp size={18} /> },
                       { id: "games", label: t("nav_games"), icon: <Gamepad size={18} /> },
                       { id: "psychological", label: t("nav_psychological"), icon: <Heart size={18} /> },
                       { id: "goals", label: t("nav_goals"), icon: <ListChecks size={18} /> },
                       { id: "parent", label: t("nav_parent"), icon: <Shield size={18} /> }
-                    ].map((item) => {
+                    ]).map((item) => {
                       const isActive = activeScreen === item.id;
                       return (
                         <button
@@ -347,6 +350,7 @@ export default function App() {
               className="flex flex-col gap-4"
             >
               {activeScreen === "home" && <HomeScreen t={t} goals={goals} userPoints={userPoints} incrementGoalProgress={incrementGoalProgress} addPoints={addPoints} setCurrentMood={setCurrentMood} currentMood={currentMood} setActiveScreen={setActiveScreen} />}
+              {activeScreen === "admin" && <AdminDashboardScreen t={t} />}
               {activeScreen === "academic" && <AcademicScreen t={t} />}
               {activeScreen === "games" && <GamesScreen t={t} addPoints={addPoints} userPoints={userPoints} />}
               {activeScreen === "psychological" && <PsychologicalScreen t={t} currentMood={currentMood} setCurrentMood={setCurrentMood} addPoints={addPoints} />}
@@ -450,11 +454,12 @@ function LevelPickerScreen({
   studentName: string;
   onConfirm: (level: AlgerianLevel) => void;
 }) {
+  const { algerianLevels } = useBloom();
   const [selectedCycleIdx, setSelectedCycleIdx] = useState<number | null>(null);
   const [selectedYearIdx, setSelectedYearIdx] = useState<number | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<string>("");
 
-  const activeCycle = selectedCycleIdx !== null ? ALGERIAN_LEVELS[selectedCycleIdx] : null;
+  const activeCycle = selectedCycleIdx !== null ? algerianLevels[selectedCycleIdx] : null;
   const activeYear = activeCycle && selectedYearIdx !== null ? activeCycle.years[selectedYearIdx] : null;
   const needsTrack = !!(activeYear?.tracks && activeYear.tracks.length > 0);
   const canConfirm = activeCycle && activeYear && (!needsTrack || selectedTrack);
@@ -486,7 +491,7 @@ function LevelPickerScreen({
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-black text-text-secondary uppercase tracking-wider px-1">الطور — Cycle scolaire</span>
         <div className="flex flex-col gap-2">
-          {ALGERIAN_LEVELS.map((cycle, idx) => (
+          {algerianLevels.map((cycle, idx) => (
             <button
               key={cycle.cycle}
               onClick={() => { setSelectedCycleIdx(idx); setSelectedYearIdx(null); setSelectedTrack(""); }}
@@ -1501,14 +1506,17 @@ function GamesScreen({
   addPoints: (pts: number) => void;
   userPoints: number;
 }) {
-  const { currentUser, userRole, studentLevels, appLanguage } = useBloom();
-  const [activeGame, setActiveGame] = useState<"math" | "memory" | null>(null);
+  const { currentUser, userRole, studentLevels, appLanguage, customGames } = useBloom();
+  const [activeGame, setActiveGame] = useState<string | null>(null);
 
   const studentName = (userRole === "student" && currentUser?.name === "Ahmed") ? "Ahmed" : "Sara";
   const studentLevel = studentLevels[studentName];
   const cycle = studentLevel?.cycle || "moyen";
 
-  if (activeGame === "math") {
+  // Find if active game is a custom game
+  const activeCustomGame = customGames?.find(g => g.id === activeGame);
+
+  if (activeGame === "math" || (activeCustomGame && activeCustomGame.type === "quiz")) {
     return (
       <MathQuizGame
         t={t}
@@ -1516,20 +1524,27 @@ function GamesScreen({
         addPoints={addPoints}
         cycle={cycle}
         appLanguage={appLanguage}
+        customQuestions={activeCustomGame?.questions}
+        customTitle={activeCustomGame?.title}
       />
     );
   }
 
-  if (activeGame === "memory") {
+  if (activeGame === "memory" || (activeCustomGame && activeCustomGame.type === "memory")) {
     return (
       <MemoryMatchingGame
         t={t}
         onExit={() => setActiveGame(null)}
         addPoints={addPoints}
         cycle={cycle}
+        customEmojis={activeCustomGame?.emojis}
+        customTitle={activeCustomGame?.title}
       />
     );
   }
+
+  // Custom games matching student's cycle
+  const levelCustomGames = customGames?.filter(g => g.cycle === cycle) || [];
 
   return (
     <>
@@ -1587,6 +1602,42 @@ function GamesScreen({
             {t("game_start_play")}
           </button>
         </div>
+
+        {/* Custom Games (admin-created) */}
+        {levelCustomGames.length > 0 && (
+          <>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="flex-1 h-px bg-border-custom/50" />
+              <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Pedagogical Games</span>
+              <div className="flex-1 h-px bg-border-custom/50" />
+            </div>
+            {levelCustomGames.map(game => (
+              <div key={game.id} className="p-4 rounded-3xl bg-surface border-2 border-primary/20 shadow-sm relative overflow-hidden flex flex-col gap-4">
+                <div className="absolute top-2 right-3 z-20">
+                  <span className="bg-primary/10 text-primary text-[9px] font-black uppercase tracking-wider py-0.5 px-2 rounded-full border border-primary/20">
+                    Admin Created
+                  </span>
+                </div>
+                <div className="absolute top-0 right-0 p-8 text-primary/10 translate-x-4 -translate-y-4 select-none">
+                  {game.type === "memory" ? <Brain size={100} /> : <Trophy size={100} />}
+                </div>
+                <div className="z-10 flex flex-col gap-1 max-w-[75%]">
+                  <span className="bg-primary/10 text-primary text-[10px] font-black uppercase tracking-wider py-1 px-2.5 rounded-full w-max">
+                    {game.type === "memory" ? "Memory Game" : "Quiz Challenge"}
+                  </span>
+                  <h4 className="font-black text-base text-text-primary mt-1">{game.title}</h4>
+                  <p className="text-xs text-text-secondary leading-snug">{game.description}</p>
+                </div>
+                <button
+                  onClick={() => setActiveGame(game.id)}
+                  className="w-full bg-primary hover:scale-[1.02] active:scale-[0.98] text-white py-3 rounded-2xl text-xs font-black shadow-xs transition-all mt-2 z-10"
+                >
+                  {t("game_start_play")}
+                </button>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </>
   );
@@ -1606,15 +1657,22 @@ function MathQuizGame({
   onExit,
   addPoints,
   cycle,
-  appLanguage
+  appLanguage,
+  customQuestions,
+  customTitle
 }: {
   t: (k: string, ...a: (string | number)[]) => string;
   onExit: () => void;
   addPoints: (pts: number) => void;
   cycle: AlgerianCycle;
   appLanguage: string;
+  customQuestions?: QuizQuestion[];
+  customTitle?: string;
 }) {
   const getQuestionsForLevel = (): QuizQuestion[] => {
+    if (customQuestions && customQuestions.length > 0) {
+      return customQuestions;
+    }
     if (cycle === "primaire") {
       if (appLanguage === "ar") {
         return [
@@ -1796,6 +1854,9 @@ function MathQuizGame({
           <ArrowLeft size={16} />
           {t("mem_back")}
         </button>
+        <span className="text-xs font-black text-text-primary uppercase tracking-wide">
+          {customTitle || t("game_math_challenge")}
+        </span>
         <span className="text-xs font-black text-primary">
           {t("quiz_progress", currentIdx + 1, quizQuestions.length)}
         </span>
@@ -1886,14 +1947,31 @@ function MemoryMatchingGame({
   t,
   onExit,
   addPoints,
-  cycle
+  cycle,
+  customEmojis,
+  customTitle
 }: {
   t: (k: string, ...a: (string | number)[]) => string;
   onExit: () => void;
   addPoints: (pts: number) => void;
   cycle: AlgerianCycle;
+  customEmojis?: string[];
+  customTitle?: string;
 }) {
   const getGameConfig = () => {
+    if (customEmojis && customEmojis.length > 0) {
+      const len = customEmojis.length;
+      let gridCols = "grid-cols-4";
+      if (len <= 6) gridCols = "grid-cols-3";
+      else if (len <= 8) gridCols = "grid-cols-4";
+      else gridCols = "grid-cols-5";
+      return {
+        emojis: customEmojis,
+        gridCols,
+        timeLeft: 45,
+        pointsPerWin: len * 20
+      };
+    }
     switch (cycle) {
       case "primaire":
         return {
@@ -2077,15 +2155,20 @@ function MemoryMatchingGame({
   return (
     <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-md flex flex-col gap-4">
       {/* Header */}
-      <div className="flex justify-between items-center pb-2 border-b border-border-custom">
-        <button onClick={onExit} className="p-1 rounded-lg hover:bg-border-custom/50 text-text-secondary flex items-center gap-1 text-xs font-black">
-          <ArrowLeft size={16} />
-          {t("mem_back")}
-        </button>
-        <span className="text-xs font-black text-text-secondary">Moves: {moves}</span>
-        <span className={`text-xs font-black ${timeLeft <= 10 ? "text-red-500 animate-pulse" : "text-primary"}`}>
-          Time: {timeLeft}s
-        </span>
+      <div className="flex flex-col gap-1 pb-2 border-b border-border-custom">
+        <div className="flex justify-between items-center">
+          <button onClick={onExit} className="p-1 rounded-lg hover:bg-border-custom/50 text-text-secondary flex items-center gap-1 text-xs font-black">
+            <ArrowLeft size={16} />
+            {t("mem_back")}
+          </button>
+          <span className="text-xs font-black text-text-primary uppercase tracking-wide">
+            {customTitle || t("mem_title")}
+          </span>
+          <span className={`text-xs font-black ${timeLeft <= 10 ? "text-red-500 animate-pulse" : "text-primary"}`}>
+            {timeLeft}s
+          </span>
+        </div>
+        <div className="text-[10px] text-text-secondary text-center">Moves: {moves}</div>
       </div>
 
       {/* Card Grid */}
@@ -3123,3 +3206,554 @@ function ParentScreen({
     </>
   );
 }
+
+/* ==========================================================================
+   SCREEN: Admin Dashboard
+   ========================================================================== */
+function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[]) => string }) {
+  const {
+    algerianLevels,
+    addCustomYear,
+    addCustomTrack,
+    customGames,
+    addCustomGame,
+    studentGrades,
+    studentLevels,
+    moodLogs,
+    updateGrade,
+    appLanguage
+  } = useBloom();
+
+  // Admin sub-tab state
+  const [activeTab, setActiveTab] = useState<"levels" | "games" | "students">("students");
+
+  // ── Levels form state ──
+  const [levelCycle, setLevelCycle] = useState<AlgerianCycle>("moyen");
+  const [newYearLabel, setNewYearLabel] = useState("");
+  const [trackCycle, setTrackCycle] = useState<AlgerianCycle>("lycee");
+  const [trackYear, setTrackYear] = useState<number>(2);
+  const [newTrackName, setNewTrackName] = useState("");
+  const [levelsMsg, setLevelsMsg] = useState<string | null>(null);
+
+  // ── Game builder state ──
+  const [gameType, setGameType] = useState<"quiz" | "memory">("quiz");
+  const [gameTitle, setGameTitle] = useState("");
+  const [gameDesc, setGameDesc] = useState("");
+  const [gameCycle, setGameCycle] = useState<AlgerianCycle>("moyen");
+  const [quizQuestions, setQuizQuestions] = useState([
+    { question: "", options: ["", "", "", ""], correctIndex: 0 }
+  ]);
+  const [memEmojis, setMemEmojis] = useState("🐶,🐱,🦊,🐻,🦁,🐯");
+  const [gameMsg, setGameMsg] = useState<string | null>(null);
+
+  // ── Students state ──
+  const [selectedStudent, setSelectedStudent] = useState<"Sara" | "Ahmed">("Sara");
+  const [editGrade, setEditGrade] = useState<Record<string, string>>({});
+  const [gradeMsg, setGradeMsg] = useState<string | null>(null);
+
+  const CYCLE_LABELS: Record<AlgerianCycle, string> = {
+    primaire: "Primaire",
+    moyen: "Moyen (CEM)",
+    lycee: "Lycée"
+  };
+
+  const MOOD_ICONS: Record<string, string> = {
+    mood_happy: "😄",
+    mood_sad: "😢",
+    mood_anxious: "😰",
+    mood_angry: "😡",
+    mood_calm: "😌"
+  };
+
+  const MOOD_COLORS: Record<string, string> = {
+    mood_happy: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
+    mood_sad: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+    mood_anxious: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+    mood_angry: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+    mood_calm: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+  };
+
+  // ── Levels handlers ──
+  const handleAddYear = () => {
+    if (!newYearLabel.trim()) return;
+    addCustomYear(levelCycle, newYearLabel.trim());
+    setNewYearLabel("");
+    setLevelsMsg("✓ Year added successfully!");
+    setTimeout(() => setLevelsMsg(null), 3000);
+  };
+
+  const handleAddTrack = () => {
+    if (!newTrackName.trim()) return;
+    addCustomTrack(trackCycle, trackYear, newTrackName.trim());
+    setNewTrackName("");
+    setLevelsMsg("✓ Track added successfully!");
+    setTimeout(() => setLevelsMsg(null), 3000);
+  };
+
+  // ── Game builder handlers ──
+  const handleAddQuestion = () => {
+    setQuizQuestions(prev => [...prev, { question: "", options: ["", "", "", ""], correctIndex: 0 }]);
+  };
+
+  const handleQuestionChange = (idx: number, field: string, value: string | number) => {
+    setQuizQuestions(prev => prev.map((q, i) => {
+      if (i !== idx) return q;
+      if (field === "correctIndex") return { ...q, correctIndex: value as number };
+      if (field.startsWith("opt_")) {
+        const optIdx = parseInt(field.split("_")[1]);
+        const newOpts = [...q.options];
+        newOpts[optIdx] = value as string;
+        return { ...q, options: newOpts };
+      }
+      return { ...q, [field]: value };
+    }));
+  };
+
+  const handleRemoveQuestion = (idx: number) => {
+    setQuizQuestions(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleCreateGame = () => {
+    if (!gameTitle.trim()) { setGameMsg("❌ Please enter a game title."); return; }
+    if (gameType === "quiz") {
+      const validQ = quizQuestions.filter(q => q.question.trim() && q.options.every(o => o.trim()));
+      if (validQ.length === 0) { setGameMsg("❌ Add at least one complete question."); return; }
+      addCustomGame({ title: gameTitle, description: gameDesc, cycle: gameCycle, type: "quiz", questions: validQ });
+    } else {
+      const emojiList = memEmojis.split(",").map(e => e.trim()).filter(Boolean);
+      if (emojiList.length < 3) { setGameMsg("❌ Enter at least 3 emojis separated by commas."); return; }
+      addCustomGame({ title: gameTitle, description: gameDesc, cycle: gameCycle, type: "memory", emojis: emojiList });
+    }
+    setGameTitle(""); setGameDesc(""); setMemEmojis("🐶,🐱,🦊,🐻,🦁,🐯");
+    setQuizQuestions([{ question: "", options: ["", "", "", ""], correctIndex: 0 }]);
+    setGameMsg("✓ Game created and available to students!");
+    setTimeout(() => setGameMsg(null), 4000);
+  };
+
+  // ── Grade update handler ──
+  const handleGradeUpdate = (subject: string) => {
+    const val = parseFloat(editGrade[subject] || "");
+    if (isNaN(val) || val < 0 || val > 20) { setGradeMsg("❌ Grade must be 0–20."); return; }
+    updateGrade(selectedStudent, subject, val);
+    setEditGrade(prev => { const n = { ...prev }; delete n[subject]; return n; });
+    setGradeMsg("✓ Grade updated!");
+    setTimeout(() => setGradeMsg(null), 2500);
+  };
+
+  const studentGrade = studentGrades[selectedStudent];
+  const studentLevel = studentLevels[selectedStudent];
+  const studentMoods = moodLogs.filter(l => l.student === selectedStudent);
+
+  const tabBtn = (id: "levels" | "games" | "students", label: string, icon: React.ReactNode) => (
+    <button
+      key={id}
+      onClick={() => setActiveTab(id)}
+      className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wide transition-all ${
+        activeTab === id
+          ? "bg-primary text-white shadow-sm"
+          : "text-text-secondary hover:bg-border-custom/40"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+
+  const inputCls = "w-full p-2.5 rounded-xl border border-border-custom bg-surface text-xs text-text-primary focus:ring-2 focus:ring-primary/20 outline-none";
+  const labelCls = "text-[10px] font-black text-text-secondary uppercase tracking-wide";
+
+  return (
+    <>
+      {/* Header */}
+      <div className="p-4 rounded-3xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 shadow-xs flex items-center gap-3">
+        <div className="w-10 h-10 rounded-2xl bg-primary/15 flex items-center justify-center text-primary">
+          <Shield size={20} />
+        </div>
+        <div>
+          <h2 className="font-black text-sm text-text-primary">Admin Dashboard 🛠️</h2>
+          <p className="text-[11px] text-text-secondary">Manage levels, games & monitor students</p>
+        </div>
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-2 p-1 bg-border-custom/20 rounded-2xl">
+        {tabBtn("students", "Students", <Activity size={14} />)}
+        {tabBtn("games", "Games", <Gamepad size={14} />)}
+        {tabBtn("levels", "Levels", <TrendingUp size={14} />)}
+      </div>
+
+      {/* ── Tab: Students ── */}
+      {activeTab === "students" && (
+        <>
+          {/* Student Selector */}
+          <div className="flex gap-2">
+            {(["Sara", "Ahmed"] as const).map(name => (
+              <button
+                key={name}
+                onClick={() => setSelectedStudent(name)}
+                className={`flex-1 py-2.5 rounded-2xl text-xs font-black transition-all ${
+                  selectedStudent === name
+                    ? "bg-primary text-white shadow-sm"
+                    : "bg-surface border border-border-custom text-text-secondary"
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+
+          {/* Student Info Card */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-sm text-text-primary">{selectedStudent}</h3>
+              {studentLevel ? (
+                <span className="bg-primary/10 text-primary text-[10px] font-black px-2.5 py-1 rounded-full">
+                  {studentLevel.label}
+                </span>
+              ) : (
+                <span className="bg-border-custom/40 text-text-secondary text-[10px] font-black px-2.5 py-1 rounded-full">
+                  No Level Set
+                </span>
+              )}
+            </div>
+
+            {studentLevel && (
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2 rounded-xl bg-border-custom/20">
+                  <div className="text-[10px] text-text-secondary font-bold">Cycle</div>
+                  <div className="text-xs font-black text-text-primary capitalize">{studentLevel.cycle}</div>
+                </div>
+                <div className="p-2 rounded-xl bg-border-custom/20">
+                  <div className="text-[10px] text-text-secondary font-bold">Year</div>
+                  <div className="text-xs font-black text-text-primary">{studentLevel.year}ème</div>
+                </div>
+                <div className="p-2 rounded-xl bg-border-custom/20">
+                  <div className="text-[10px] text-text-secondary font-bold">Track</div>
+                  <div className="text-[9px] font-black text-text-primary truncate">{studentLevel.track || "—"}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mood History */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <h3 className="font-black text-sm text-text-primary flex items-center gap-2">
+              <Heart size={14} className="text-red-400" />
+              Emotional Wellbeing
+            </h3>
+            {studentMoods.length === 0 ? (
+              <p className="text-xs text-text-secondary text-center py-3">No mood logs yet.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {studentMoods.slice(0, 5).map(log => (
+                  <div key={log.id} className="flex justify-between items-center">
+                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${MOOD_COLORS[log.mood] || "bg-border-custom/30 text-text-secondary"}`}>
+                      {MOOD_ICONS[log.mood] || "😶"} {t(log.mood)}
+                    </span>
+                    <span className="text-[10px] text-text-secondary font-bold">{log.timestamp}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Grades Editor */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <h3 className="font-black text-sm text-text-primary flex items-center gap-2">
+              <Award size={14} className="text-amber-400" />
+              Academic Grades (/ 20)
+            </h3>
+            {gradeMsg && (
+              <div className={`text-[10px] font-black p-2 rounded-xl text-center ${gradeMsg.startsWith("✓") ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "bg-red-100 text-red-700"}`}>
+                {gradeMsg}
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              {Object.entries(studentGrade).map(([subj, grade]) => (
+                <div key={subj} className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <div className="text-[10px] font-black text-text-secondary truncate">{t(subj)}</div>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <div className="flex-1 h-1.5 bg-border-custom/30 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            grade >= 14 ? "bg-green-500" : grade >= 10 ? "bg-amber-500" : "bg-red-500"
+                          }`}
+                          style={{ width: `${(grade / 20) * 100}%` }}
+                        />
+                      </div>
+                      <span className={`text-[10px] font-black w-8 text-right ${
+                        grade >= 14 ? "text-green-600" : grade >= 10 ? "text-amber-600" : "text-red-600"
+                      }`}>
+                        {grade}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 items-center">
+                    <input
+                      type="number"
+                      min="0"
+                      max="20"
+                      step="0.5"
+                      placeholder={String(grade)}
+                      value={editGrade[subj] ?? ""}
+                      onChange={e => setEditGrade(prev => ({ ...prev, [subj]: e.target.value }))}
+                      className="w-14 p-1 rounded-lg border border-border-custom bg-surface text-[10px] text-center font-black text-text-primary outline-none focus:ring-1 focus:ring-primary/30"
+                    />
+                    <button
+                      onClick={() => handleGradeUpdate(subj)}
+                      disabled={!editGrade[subj]}
+                      className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all disabled:opacity-30"
+                    >
+                      <Check size={10} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Tab: Game Builder ── */}
+      {activeTab === "games" && (
+        <>
+          {/* Existing custom games list */}
+          {customGames.length > 0 && (
+            <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+              <h3 className="font-black text-sm text-text-primary">Created Games ({customGames.length})</h3>
+              <div className="flex flex-col gap-2">
+                {customGames.map(g => (
+                  <div key={g.id} className="flex items-center justify-between p-2.5 rounded-xl bg-border-custom/20">
+                    <div>
+                      <div className="text-xs font-black text-text-primary">{g.title}</div>
+                      <div className="text-[10px] text-text-secondary">{CYCLE_LABELS[g.cycle]} · {g.type === "quiz" ? `${g.questions?.length || 0} questions` : `${g.emojis?.length || 0} emojis`}</div>
+                    </div>
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${g.type === "quiz" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"}`}>
+                      {g.type === "quiz" ? "Quiz" : "Memory"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Game creation form */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-4">
+            <h3 className="font-black text-sm text-text-primary flex items-center gap-2">
+              <Plus size={14} className="text-primary" />
+              Create New Game
+            </h3>
+
+            {gameMsg && (
+              <div className={`text-[10px] font-black p-2.5 rounded-xl text-center ${gameMsg.startsWith("✓") ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "bg-red-100 text-red-700"}`}>
+                {gameMsg}
+              </div>
+            )}
+
+            {/* Game type selector */}
+            <div className="flex gap-2">
+              {(["quiz", "memory"] as const).map(type => (
+                <button
+                  key={type}
+                  onClick={() => setGameType(type)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-black transition-all capitalize ${gameType === type ? "bg-primary text-white" : "bg-border-custom/30 text-text-secondary"}`}
+                >
+                  {type === "quiz" ? "📝 Quiz" : "🧠 Memory"}
+                </button>
+              ))}
+            </div>
+
+            {/* Common fields */}
+            <div className="flex flex-col gap-2">
+              <label className={labelCls}>Game Title *</label>
+              <input value={gameTitle} onChange={e => setGameTitle(e.target.value)} placeholder="e.g. Arabic Vocabulary Quiz" className={inputCls} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className={labelCls}>Description</label>
+              <input value={gameDesc} onChange={e => setGameDesc(e.target.value)} placeholder="e.g. Test your Arabic vocabulary skills" className={inputCls} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className={labelCls}>Target Cycle *</label>
+              <select value={gameCycle} onChange={e => setGameCycle(e.target.value as AlgerianCycle)} className={inputCls}>
+                <option value="primaire">Primaire (1–5)</option>
+                <option value="moyen">Moyen / CEM (6–9)</option>
+                <option value="lycee">Lycée (10–12)</option>
+              </select>
+            </div>
+
+            {/* Quiz specific */}
+            {gameType === "quiz" && (
+              <div className="flex flex-col gap-3">
+                <div className="flex justify-between items-center">
+                  <label className={labelCls}>Questions</label>
+                  <button onClick={handleAddQuestion} className="text-[10px] font-black text-primary flex items-center gap-1 hover:underline">
+                    <Plus size={11} /> Add Question
+                  </button>
+                </div>
+                {quizQuestions.map((q, idx) => (
+                  <div key={idx} className="p-3 rounded-2xl bg-border-custom/20 flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-text-secondary">Q{idx + 1}</span>
+                      {quizQuestions.length > 1 && (
+                        <button onClick={() => handleRemoveQuestion(idx)} className="text-red-400 hover:text-red-600">
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      value={q.question}
+                      onChange={e => handleQuestionChange(idx, "question", e.target.value)}
+                      placeholder="Question text..."
+                      className={inputCls}
+                    />
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {q.options.map((opt, oi) => (
+                        <div key={oi} className="flex items-center gap-1">
+                          <input
+                            type="radio"
+                            name={`correct_${idx}`}
+                            checked={q.correctIndex === oi}
+                            onChange={() => handleQuestionChange(idx, "correctIndex", oi)}
+                            className="accent-primary"
+                          />
+                          <input
+                            value={opt}
+                            onChange={e => handleQuestionChange(idx, `opt_${oi}`, e.target.value)}
+                            placeholder={`Option ${oi + 1}`}
+                            className="flex-1 p-1.5 rounded-lg border border-border-custom bg-surface text-[10px] text-text-primary outline-none"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[9px] text-text-secondary">🔘 Select the radio button next to the correct answer</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Memory specific */}
+            {gameType === "memory" && (
+              <div className="flex flex-col gap-2">
+                <label className={labelCls}>Emojis (comma-separated, min 3)</label>
+                <input
+                  value={memEmojis}
+                  onChange={e => setMemEmojis(e.target.value)}
+                  placeholder="🐶,🐱,🦊,🐻,🦁,🐯"
+                  className={inputCls}
+                />
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {memEmojis.split(",").map(e => e.trim()).filter(Boolean).map((emoji, i) => (
+                    <span key={i} className="text-lg">{emoji}</span>
+                  ))}
+                </div>
+                <p className="text-[9px] text-text-secondary">Cards will be doubled automatically for matching pairs.</p>
+              </div>
+            )}
+
+            <button
+              onClick={handleCreateGame}
+              className="w-full bg-primary text-white py-3 rounded-2xl text-xs font-black shadow-xs hover:bg-primary/95 transition-all flex items-center justify-center gap-1.5"
+            >
+              <Sparkles size={14} />
+              Create & Publish Game
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ── Tab: Levels ── */}
+      {activeTab === "levels" && (
+        <>
+          {/* Current levels tree */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <h3 className="font-black text-sm text-text-primary flex items-center gap-2">
+              <TrendingUp size={14} className="text-primary" />
+              Current Levels Structure
+            </h3>
+            {algerianLevels.map(cycle => (
+              <div key={cycle.cycle} className="flex flex-col gap-1">
+                <div className="text-[10px] font-black text-primary uppercase tracking-wide py-0.5">{cycle.label}</div>
+                {cycle.years.map(yr => (
+                  <div key={yr.year} className="ml-3 pl-2 border-l-2 border-border-custom/50">
+                    <div className="text-xs font-bold text-text-primary">{yr.label}</div>
+                    {yr.tracks && yr.tracks.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {yr.tracks.map(track => (
+                          <span key={track} className="text-[9px] bg-border-custom/40 text-text-secondary px-1.5 py-0.5 rounded-full">{track}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {levelsMsg && (
+            <div className="text-[11px] font-black p-2.5 rounded-xl bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 text-center">
+              {levelsMsg}
+            </div>
+          )}
+
+          {/* Add Year form */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <h3 className="font-black text-sm text-text-primary flex items-center gap-2">
+              <Plus size={14} className="text-primary" />
+              Add New Year
+            </h3>
+            <div className="flex flex-col gap-2">
+              <label className={labelCls}>Cycle</label>
+              <select value={levelCycle} onChange={e => setLevelCycle(e.target.value as AlgerianCycle)} className={inputCls}>
+                <option value="primaire">Primaire</option>
+                <option value="moyen">Moyen (CEM)</option>
+                <option value="lycee">Lycée</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className={labelCls}>Year Label *</label>
+              <input value={newYearLabel} onChange={e => setNewYearLabel(e.target.value)} placeholder='e.g. 6ème AP' className={inputCls} />
+            </div>
+            <button onClick={handleAddYear} className="w-full bg-primary text-white py-3 rounded-2xl text-xs font-black transition-all hover:bg-primary/95">
+              Add Year
+            </button>
+          </div>
+
+          {/* Add Track form */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <h3 className="font-black text-sm text-text-primary flex items-center gap-2">
+              <ChevronRight size={14} className="text-primary" />
+              Add New Track to Year
+            </h3>
+            <div className="flex flex-col gap-2">
+              <label className={labelCls}>Cycle</label>
+              <select value={trackCycle} onChange={e => setTrackCycle(e.target.value as AlgerianCycle)} className={inputCls}>
+                <option value="primaire">Primaire</option>
+                <option value="moyen">Moyen (CEM)</option>
+                <option value="lycee">Lycée</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className={labelCls}>Year Number *</label>
+              <input
+                type="number"
+                min="1"
+                value={trackYear}
+                onChange={e => setTrackYear(parseInt(e.target.value) || 1)}
+                className={inputCls}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className={labelCls}>Track Name *</label>
+              <input value={newTrackName} onChange={e => setNewTrackName(e.target.value)} placeholder='e.g. Arts Plastiques' className={inputCls} />
+            </div>
+            <button onClick={handleAddTrack} className="w-full bg-primary text-white py-3 rounded-2xl text-xs font-black transition-all hover:bg-primary/95">
+              Add Track
+            </button>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+

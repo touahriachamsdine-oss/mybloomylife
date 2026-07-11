@@ -55,6 +55,34 @@ export interface MoodLog {
   timestamp: string;
 }
 
+export interface AlgerianYear {
+  year: number;
+  label: string;
+  tracks?: string[];
+}
+
+export interface AlgerianCycleConfig {
+  cycle: AlgerianCycle;
+  label: string;
+  years: AlgerianYear[];
+}
+
+export interface CustomQuizQuestion {
+  question: string;
+  options: string[];
+  correctIndex: number;
+}
+
+export interface CustomGame {
+  id: string;
+  title: string;
+  description: string;
+  cycle: AlgerianCycle;
+  type: "quiz" | "memory";
+  questions?: CustomQuizQuestion[];
+  emojis?: string[];
+}
+
 interface BloomContextType {
   themeMode: ThemeMode;
   appLanguage: AppLanguage;
@@ -68,7 +96,7 @@ interface BloomContextType {
   supportMessages: SupportMessage[];
   
   // Auth state
-  userRole: "student" | "parent" | "teacher" | "psychologist" | null;
+  userRole: "student" | "parent" | "teacher" | "psychologist" | "admin" | null;
   currentUser: { username: string; name: string } | null;
   login: (username: string, password: string) => boolean;
   logout: () => void;
@@ -92,6 +120,13 @@ interface BloomContextType {
   // Mood history logs
   moodLogs: MoodLog[];
   addMoodLog: (student: string, mood: string) => void;
+
+  // Dynamic levels/tracks & Custom Games
+  algerianLevels: AlgerianCycleConfig[];
+  addCustomTrack: (cycle: AlgerianCycle, year: number, trackName: string) => void;
+  addCustomYear: (cycle: AlgerianCycle, label: string) => void;
+  customGames: CustomGame[];
+  addCustomGame: (game: Omit<CustomGame, "id">) => void;
 
   // Setters/Action functions
   setThemeMode: (mode: ThemeMode) => void;
@@ -126,7 +161,7 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [mounted, setMounted] = useState(false);
 
   // Auth state
-  const [userRole, setUserRoleState] = useState<"student" | "parent" | "teacher" | "psychologist" | null>(null);
+  const [userRole, setUserRoleState] = useState<"student" | "parent" | "teacher" | "psychologist" | "admin" | null>(null);
   const [currentUser, setCurrentUserState] = useState<{ username: string; name: string } | null>(null);
 
   // Grades state (Algerian subjects & 20-point scale grades)
@@ -163,6 +198,43 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [studentLevels, setStudentLevelsState] = useState<{ Sara: AlgerianLevel | null; Ahmed: AlgerianLevel | null }>(
     { Sara: null, Ahmed: null }
   );
+
+  // Default Algerian levels configuration
+  const defaultLevels: AlgerianCycleConfig[] = [
+    {
+      cycle: "primaire",
+      label: "الابتدائي — Primaire",
+      years: [
+        { year: 1, label: "1ère AP" },
+        { year: 2, label: "2ème AP" },
+        { year: 3, label: "3ème AP" },
+        { year: 4, label: "4ème AP" },
+        { year: 5, label: "5ème AP" }
+      ]
+    },
+    {
+      cycle: "moyen",
+      label: "المتوسط — Moyen (CEM)",
+      years: [
+        { year: 1, label: "1ère AM" },
+        { year: 2, label: "2ème AM" },
+        { year: 3, label: "3ème AM" },
+        { year: 4, label: "4ème AM — BEM" }
+      ]
+    },
+    {
+      cycle: "lycee",
+      label: "الثانوي — Lycée",
+      years: [
+        { year: 1, label: "1ère AS — Tronc commun" },
+        { year: 2, label: "2ème AS", tracks: ["Sciences Naturelles", "Sciences Physiques", "Mathématiques", "Lettres & Philosophie", "Gestion & Économie"] },
+        { year: 3, label: "3ème AS — BAC", tracks: ["Sciences Naturelles", "Sciences Physiques", "Mathématiques", "Lettres & Philosophie", "Gestion & Économie"] }
+      ]
+    }
+  ];
+
+  const [algerianLevels, setAlgerianLevels] = useState<AlgerianCycleConfig[]>(defaultLevels);
+  const [customGames, setCustomGames] = useState<CustomGame[]>([]);
 
   // Family link codes — static per student for the demo
   const familyLinkCodes: Record<string, string> = { Sara: "BLM-7X4", Ahmed: "BLM-9K2" };
@@ -202,6 +274,8 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const savedMoodLogs = localStorage.getItem("bloom_mood_logs");
     const savedLevels = localStorage.getItem("bloom_student_levels");
     const savedLinkedChildren = localStorage.getItem("bloom_linked_children");
+    const savedLevelsConfig = localStorage.getItem("bloom_levels_config");
+    const savedCustomGames = localStorage.getItem("bloom_custom_games");
 
     if (savedTheme) setThemeModeState(savedTheme);
     if (savedLang) setAppLanguageState(savedLang);
@@ -213,6 +287,8 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedMoodLogs) setMoodLogsState(JSON.parse(savedMoodLogs));
     if (savedLevels) setStudentLevelsState(JSON.parse(savedLevels));
     if (savedLinkedChildren) setLinkedChildrenState(JSON.parse(savedLinkedChildren));
+    if (savedLevelsConfig) setAlgerianLevels(JSON.parse(savedLevelsConfig));
+    if (savedCustomGames) setCustomGames(JSON.parse(savedCustomGames));
     
     if (savedGoals) {
       setGoalsState(JSON.parse(savedGoals));
@@ -251,7 +327,7 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return false;
     }
 
-    let role: "student" | "parent" | "teacher" | "psychologist" | null = null;
+    let role: "student" | "parent" | "teacher" | "psychologist" | "admin" | null = null;
     let name = "";
 
     const userLower = username.toLowerCase();
@@ -271,6 +347,9 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } else if (userLower === "psychologist" || userLower === "psy" || userLower === "laila") {
       role = "psychologist";
       name = "Dr. Laila";
+    } else if (userLower === "admin") {
+      role = "admin";
+      name = "System Admin";
     } else {
       return false;
     }
@@ -278,12 +357,14 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const userObj = { username, name };
     setUserRoleState(role);
     setCurrentUserState(userObj);
-    localStorage.setItem("bloom_user_role", role);
+    localStorage.setItem("bloom_user_role", role || "");
     localStorage.setItem("bloom_current_user", JSON.stringify(userObj));
     
     // Default appropriate screen
     if (role === "parent") {
       setActiveScreenState("parent");
+    } else if (role === "admin") {
+      setActiveScreenState("admin");
     } else if (role === "teacher" || role === "psychologist") {
       setActiveScreenState("academic");
     } else {
@@ -344,6 +425,48 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const nextLogs = [newLog, ...moodLogs];
     setMoodLogsState(nextLogs);
     localStorage.setItem("bloom_mood_logs", JSON.stringify(nextLogs));
+  };
+
+  // Dynamic levels/tracks & Custom Games operations
+  const addCustomTrack = (cycle: AlgerianCycle, year: number, trackName: string) => {
+    const updated = algerianLevels.map(c => {
+      if (c.cycle === cycle) {
+        const nextYears = c.years.map(y => {
+          if (y.year === year) {
+            const nextTracks = y.tracks ? [...y.tracks, trackName] : [trackName];
+            return { ...y, tracks: nextTracks };
+          }
+          return y;
+        });
+        return { ...c, years: nextYears };
+      }
+      return c;
+    });
+    setAlgerianLevels(updated);
+    localStorage.setItem("bloom_levels_config", JSON.stringify(updated));
+  };
+
+  const addCustomYear = (cycle: AlgerianCycle, label: string) => {
+    const updated = algerianLevels.map(c => {
+      if (c.cycle === cycle) {
+        const nextYearNum = c.years.length + 1;
+        const newYear: AlgerianYear = { year: nextYearNum, label };
+        return { ...c, years: [...c.years, newYear] };
+      }
+      return c;
+    });
+    setAlgerianLevels(updated);
+    localStorage.setItem("bloom_levels_config", JSON.stringify(updated));
+  };
+
+  const addCustomGame = (game: Omit<CustomGame, "id">) => {
+    const newGame: CustomGame = {
+      ...game,
+      id: Date.now().toString()
+    };
+    const updated = [...customGames, newGame];
+    setCustomGames(updated);
+    localStorage.setItem("bloom_custom_games", JSON.stringify(updated));
   };
 
   // Persisting wrapper functions
@@ -482,6 +605,11 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         linkChildAccount,
         moodLogs,
         addMoodLog,
+        algerianLevels,
+        addCustomTrack,
+        addCustomYear,
+        customGames,
+        addCustomGame,
         setThemeMode,
         setAppLanguage,
         setCurrentMood,
