@@ -365,8 +365,10 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setActiveScreenState("parent");
     } else if (role === "admin") {
       setActiveScreenState("admin");
-    } else if (role === "teacher" || role === "psychologist") {
+    } else if (role === "teacher") {
       setActiveScreenState("academic");
+    } else if (role === "psychologist") {
+      setActiveScreenState("psychological");
     } else {
       setActiveScreenState("home");
     }

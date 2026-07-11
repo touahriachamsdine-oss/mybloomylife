@@ -170,11 +170,17 @@ export default function App() {
             </h1>
           </div>
 
-          {/* Points display with count-up animation */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface font-bold text-sm shadow-sm border border-border-custom" style={{ color: 'var(--accent-orange)' }}>
-            <Coins size={16} className="animate-spin" style={{ animationDuration: '4s' }} />
-            <span>{userPoints}</span>
-          </div>
+          {/* Points display for students / Role badge for others */}
+          {userRole === "student" ? (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface font-bold text-sm shadow-sm border border-border-custom" style={{ color: 'var(--accent-orange)' }}>
+              <Coins size={16} className="animate-spin" style={{ animationDuration: '4s' }} />
+              <span>{userPoints}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary font-bold text-xs shadow-sm border border-primary/20">
+              <span className="capitalize">{userRole ? t("role_" + userRole) : ""}</span>
+            </div>
+          )}
         </header>
 
         {/* Navigation Drawer Overlay */}
@@ -255,35 +261,56 @@ export default function App() {
 
                   {/* Navigation Links */}
                   <nav className="flex flex-col gap-1">
-                    {(userRole === "admin"
-                      ? [{ id: "admin", label: "Admin Dashboard 🛠️", icon: <Shield size={18} /> }]
-                      : []
-                    ).concat([
-                      { id: "home", label: t("nav_home"), icon: <HomeIcon size={18} /> },
-                      { id: "academic", label: t("nav_academic"), icon: <TrendingUp size={18} /> },
-                      { id: "games", label: t("nav_games"), icon: <Gamepad size={18} /> },
-                      { id: "psychological", label: t("nav_psychological"), icon: <Heart size={18} /> },
-                      { id: "goals", label: t("nav_goals"), icon: <ListChecks size={18} /> },
-                      { id: "parent", label: t("nav_parent"), icon: <Shield size={18} /> }
-                    ]).map((item) => {
-                      const isActive = activeScreen === item.id;
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => setActiveScreen(item.id)}
-                          className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all ${
-                            isActive
-                              ? "bg-primary text-white shadow-md shadow-primary/20 scale-[1.02]"
-                              : "text-text-primary hover:bg-border-custom/50"
-                          }`}
-                        >
-                          <span className={isActive ? "text-white" : "text-primary"}>
-                            {item.icon}
-                          </span>
-                          <span>{item.label}</span>
-                        </button>
-                      );
-                    })}
+                    {(() => {
+                      let items: { id: string; label: string; icon: React.ReactNode }[] = [];
+                      if (userRole === "student") {
+                        items = [
+                          { id: "home", label: t("nav_home"), icon: <HomeIcon size={18} /> },
+                          { id: "academic", label: t("nav_academic"), icon: <TrendingUp size={18} /> },
+                          { id: "games", label: t("nav_games"), icon: <Gamepad size={18} /> },
+                          { id: "psychological", label: t("nav_psychological"), icon: <Heart size={18} /> },
+                          { id: "goals", label: t("nav_goals"), icon: <ListChecks size={18} /> }
+                        ];
+                      } else if (userRole === "parent") {
+                        items = [
+                          { id: "parent", label: t("nav_parent"), icon: <Shield size={18} /> }
+                        ];
+                      } else if (userRole === "teacher") {
+                        items = [
+                          { id: "academic", label: t("nav_academic"), icon: <TrendingUp size={18} /> }
+                        ];
+                      } else if (userRole === "psychologist") {
+                        items = [
+                          { id: "psychological", label: t("nav_psychological"), icon: <Heart size={18} /> }
+                        ];
+                      } else if (userRole === "admin") {
+                        items = [
+                          { id: "admin", label: t("nav_admin"), icon: <Shield size={18} /> }
+                        ];
+                      }
+                      return items.map((item) => {
+                        const isActive = activeScreen === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              setActiveScreen(item.id);
+                              setDrawerOpen(false);
+                            }}
+                            className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all ${
+                              isActive
+                                ? "bg-primary text-white shadow-md shadow-primary/20 scale-[1.02]"
+                                : "text-text-primary hover:bg-border-custom/50"
+                            }`}
+                          >
+                            <span className={isActive ? "text-white" : "text-primary"}>
+                              {item.icon}
+                            </span>
+                            <span>{item.label}</span>
+                          </button>
+                        );
+                      });
+                    })()}
                   </nav>
                 </div>
 
@@ -339,7 +366,7 @@ export default function App() {
         </AnimatePresence>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto px-4 pb-20 pt-1 relative scroll-smooth">
+        <main className={`flex-1 overflow-y-auto px-4 pt-1 relative scroll-smooth ${userRole === "student" ? "pb-20" : "pb-6"}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeScreen}
@@ -369,38 +396,40 @@ export default function App() {
         </main>
 
         {/* Bottom Navigation Bar */}
-        <nav className="absolute bottom-0 left-0 right-0 h-16 bg-surface/90 backdrop-blur-md border-t border-border-custom flex justify-around items-center px-2 z-30">
-          {[
-            { id: "home", icon: <HomeIcon size={20} />, label: t("nav_home") },
-            { id: "academic", icon: <TrendingUp size={20} />, label: t("nav_academic") },
-            { id: "games", icon: <Gamepad size={20} />, label: t("nav_games") },
-            { id: "psychological", icon: <Heart size={20} />, label: t("nav_psychological") },
-            { id: "goals", icon: <ListChecks size={20} />, label: t("nav_goals") }
-          ].map((tab) => {
-            const isTabActive = activeScreen === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveScreen(tab.id)}
-                className={`flex flex-col items-center justify-center flex-1 h-full transition-all relative ${
-                  isTabActive ? "text-primary scale-105" : "text-text-secondary hover:text-text-primary"
-                }`}
-              >
-                {tab.icon}
-                <span className="text-[10px] font-bold mt-1 max-w-[70px] truncate text-center leading-none">
-                  {tab.label}
-                </span>
-                {isTabActive && (
-                  <motion.div
-                    layoutId="activeTabIndicator"
-                    className="absolute top-0 w-8 h-1 bg-primary rounded-full"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
-                )}
-              </button>
-            );
-          })}
-        </nav>
+        {userRole === "student" && (
+          <nav className="absolute bottom-0 left-0 right-0 h-16 bg-surface/90 backdrop-blur-md border-t border-border-custom flex justify-around items-center px-2 z-30">
+            {[
+              { id: "home", icon: <HomeIcon size={20} />, label: t("nav_home") },
+              { id: "academic", icon: <TrendingUp size={20} />, label: t("nav_academic") },
+              { id: "games", icon: <Gamepad size={20} />, label: t("nav_games") },
+              { id: "psychological", icon: <Heart size={20} />, label: t("nav_psychological") },
+              { id: "goals", icon: <ListChecks size={20} />, label: t("nav_goals") }
+            ].map((tab) => {
+              const isTabActive = activeScreen === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveScreen(tab.id)}
+                  className={`flex flex-col items-center justify-center flex-1 h-full transition-all relative ${
+                    isTabActive ? "text-primary scale-105" : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  {tab.icon}
+                  <span className="text-[10px] font-bold mt-1 max-w-[70px] truncate text-center leading-none">
+                    {tab.label}
+                  </span>
+                  {isTabActive && (
+                    <motion.div
+                      layoutId="activeTabIndicator"
+                      className="absolute top-0 w-8 h-1 bg-primary rounded-full"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        )}
           </>
         )}
 
