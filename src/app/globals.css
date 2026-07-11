@@ -1,26 +1,132 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
+@theme {
+  --color-primary:       var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-on-primary:    var(--on-primary);
+  --color-accent-orange: var(--accent-orange);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-green:  var(--accent-green);
+  --color-bg-start:      var(--bg-start);
+  --color-bg-mid:        var(--bg-mid);
+  --color-bg-end:        var(--bg-end);
+  --color-surface:       var(--surface);
+  --color-surface-tint:  var(--surface-tint);
+  --color-text-primary:  var(--text-primary);
+  --color-text-secondary:var(--text-secondary);
+  --color-border-custom: var(--border-custom);
+
+  --font-sans:   "Outfit", var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  --font-arabic: "Cairo",  var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BLOOM GARDEN — Single Unified Palette
+   Soft Peach-Orange · Soft Yellow · Pastel Light Green
+   ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ── Primary accent (pastel sage green) ─── */
+  --primary:        #5BB891;
+  --primary-light:  #C8EDD9;
+  --on-primary:     #FFFFFF;
+
+  /* ── Named accent tones ───────────────────
+     Use these anywhere you need the peach or
+     yellow from the palette (cards, badges…) */
+  --accent-orange:  #F4956A;   /* soft peach-orange  */
+  --accent-yellow:  #F9D56E;   /* soft warm yellow   */
+  --accent-green:   #5BB891;   /* same as --primary  */
+
+  /* ── Backgrounds (3-stop gradient: yellow → peach → green) */
+  --bg-start:       #FEFDF5;   /* warm yellow-cream  */
+  --bg-mid:         #FFF3E8;   /* soft peach         */
+  --bg-end:         #F2FAF5;   /* pastel green       */
+
+  /* ── Surfaces & borders ───────────────────── */
+  --surface:        #FFFFFF;
+  --surface-tint:   #F8FEFA;   /* very light green surface variant */
+  --border-custom:  #D6EDE1;
+
+  /* ── Typography ───────────────────────────── */
+  --text-primary:   #2A3D35;   /* deep forest green  */
+  --text-secondary: #5C7A68;   /* muted sage         */
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  background: linear-gradient(
+    145deg,
+    var(--bg-start)  0%,
+    var(--bg-mid)   50%,
+    var(--bg-end)  100%
+  );
+  color: var(--text-primary);
+  min-height: 100vh;
+  margin: 0;
+  transition: background 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-x: hidden;
+}
+
+
+/* RTL Specific Body adjustments */
+html[dir="rtl"] body {
+  font-family: var(--font-arabic);
+}
+
+/* Flip Animations for Memory Cards */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* Shimmer animations */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-bg {
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Breathing animation */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; box-shadow: 0 0 30px var(--primary); }
+}
+.breathe-circle {
+  animation: breathe 8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Standard scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+
+/* Custom Glassmorphism Card */
+.glass-panel {
+  background: rgba(var(--surface), 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-custom);
 }
