@@ -83,6 +83,13 @@ export interface CustomGame {
   emojis?: string[];
 }
 
+export interface RegisteredUser {
+  username: string;
+  name: string;
+  password: string;
+  role: "student" | "parent" | "teacher" | "psychologist" | "admin";
+}
+
 interface BloomContextType {
   themeMode: ThemeMode;
   appLanguage: AppLanguage;
@@ -94,23 +101,27 @@ interface BloomContextType {
   parentAuthenticated: boolean;
   parentAlerts: ParentAlert[];
   supportMessages: SupportMessage[];
+  registeredUsers: RegisteredUser[];
   
   // Auth state
   userRole: "student" | "parent" | "teacher" | "psychologist" | "admin" | null;
   currentUser: { username: string; name: string } | null;
   login: (username: string, password: string) => boolean;
+  register: (
+    username: string,
+    name: string,
+    password: string,
+    role: "student" | "parent" | "teacher" | "psychologist" | "admin"
+  ) => { success: boolean; error?: string };
   logout: () => void;
   
   // Grade state
-  studentGrades: {
-    Sara: StudentGrades;
-    Ahmed: StudentGrades;
-  };
-  updateGrade: (student: "Sara" | "Ahmed", subject: string, grade: number) => void;
+  studentGrades: Record<string, StudentGrades>;
+  updateGrade: (student: string, subject: string, grade: number) => void;
 
   // Algerian level system
-  studentLevels: { Sara: AlgerianLevel | null; Ahmed: AlgerianLevel | null };
-  updateStudentLevel: (student: "Sara" | "Ahmed", level: AlgerianLevel) => void;
+  studentLevels: Record<string, AlgerianLevel | null>;
+  updateStudentLevel: (student: string, level: AlgerianLevel) => void;
 
   // Family linking
   familyLinkCodes: Record<string, string>;
@@ -146,6 +157,19 @@ interface BloomContextType {
 
 const BloomContext = createContext<BloomContextType | undefined>(undefined);
 
+const SEED_USERS: RegisteredUser[] = [
+  { username: "student", name: "Sara", password: "123", role: "student" },
+  { username: "sara", name: "Sara", password: "123", role: "student" },
+  { username: "ahmed", name: "Ahmed", password: "123", role: "student" },
+  { username: "parent", name: "Abu Sara", password: "1234", role: "parent" },
+  { username: "papa", name: "Abu Sara", password: "1234", role: "parent" },
+  { username: "teacher", name: "Professor Ali", password: "123", role: "teacher" },
+  { username: "prof", name: "Professor Ali", password: "123", role: "teacher" },
+  { username: "psychologist", name: "Dr. Laila", password: "123", role: "psychologist" },
+  { username: "psy", name: "Dr. Laila", password: "123", role: "psychologist" },
+  { username: "laila", name: "Dr. Laila", password: "123", role: "psychologist" },
+  { username: "admin", name: "System Admin", password: "123", role: "admin" }
+];
 
 export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Global States
@@ -160,15 +184,15 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [supportMessages, setSupportMessagesState] = useState<SupportMessage[]>([]);
   const [mounted, setMounted] = useState(false);
 
+  // Registered users list
+  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>(SEED_USERS);
+
   // Auth state
   const [userRole, setUserRoleState] = useState<"student" | "parent" | "teacher" | "psychologist" | "admin" | null>(null);
   const [currentUser, setCurrentUserState] = useState<{ username: string; name: string } | null>(null);
 
   // Grades state (Algerian subjects & 20-point scale grades)
-  const [studentGrades, setStudentGradesState] = useState<{
-    Sara: StudentGrades;
-    Ahmed: StudentGrades;
-  }>({
+  const [studentGrades, setStudentGradesState] = useState<Record<string, StudentGrades>>({
     Sara: {
       subject_math: 16.5,
       subject_physics: 15.0,
@@ -195,9 +219,10 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   // Algerian level state (persisted)
-  const [studentLevels, setStudentLevelsState] = useState<{ Sara: AlgerianLevel | null; Ahmed: AlgerianLevel | null }>(
-    { Sara: null, Ahmed: null }
-  );
+  const [studentLevels, setStudentLevelsState] = useState<Record<string, AlgerianLevel | null>>({
+    Sara: null,
+    Ahmed: null
+  });
 
   // Default Algerian levels configuration
   const defaultLevels: AlgerianCycleConfig[] = [
@@ -236,8 +261,10 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [algerianLevels, setAlgerianLevels] = useState<AlgerianCycleConfig[]>(defaultLevels);
   const [customGames, setCustomGames] = useState<CustomGame[]>([]);
 
-  // Family link codes — static per student for the demo
-  const familyLinkCodes: Record<string, string> = { Sara: "BLM-7X4", Ahmed: "BLM-9K2" };
+  const [familyLinkCodes, setFamilyLinkCodes] = useState<Record<string, string>>({
+    Sara: "BLM-7X4",
+    Ahmed: "BLM-9K2"
+  });
 
   // Parent's linked children list (persisted)
   const [linkedChildren, setLinkedChildrenState] = useState<string[]>([]);
@@ -276,6 +303,8 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const savedLinkedChildren = localStorage.getItem("bloom_linked_children");
     const savedLevelsConfig = localStorage.getItem("bloom_levels_config");
     const savedCustomGames = localStorage.getItem("bloom_custom_games");
+    const savedUsers = localStorage.getItem("bloom_registered_users");
+    const savedLinkCodes = localStorage.getItem("bloom_family_link_codes");
 
     if (savedTheme) setThemeModeState(savedTheme);
     if (savedLang) setAppLanguageState(savedLang);
@@ -289,6 +318,8 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedLinkedChildren) setLinkedChildrenState(JSON.parse(savedLinkedChildren));
     if (savedLevelsConfig) setAlgerianLevels(JSON.parse(savedLevelsConfig));
     if (savedCustomGames) setCustomGames(JSON.parse(savedCustomGames));
+    if (savedUsers) setRegisteredUsers(JSON.parse(savedUsers));
+    if (savedLinkCodes) setFamilyLinkCodes(JSON.parse(savedLinkCodes));
     
     if (savedGoals) {
       setGoalsState(JSON.parse(savedGoals));
@@ -323,45 +354,24 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Auth operations
   const login = (username: string, password: string): boolean => {
-    if (password !== "123" && !(username === "parent" && password === "1234")) {
+    const userLower = username.toLowerCase().trim();
+    const foundUser = registeredUsers.find(
+      u => u.username.toLowerCase() === userLower && u.password === password
+    );
+
+    if (!foundUser) {
       return false;
     }
 
-    let role: "student" | "parent" | "teacher" | "psychologist" | "admin" | null = null;
-    let name = "";
-
-    const userLower = username.toLowerCase();
-    if (userLower === "student" || userLower === "sara") {
-      role = "student";
-      name = "Sara";
-    } else if (userLower === "ahmed") {
-      role = "student";
-      name = "Ahmed";
-    } else if (userLower === "parent" || userLower === "papa") {
-      role = "parent";
-      name = "Abu Sara";
-      setParentAuthenticatedState(true);
-    } else if (userLower === "teacher" || userLower === "prof") {
-      role = "teacher";
-      name = "Professor Ali";
-    } else if (userLower === "psychologist" || userLower === "psy" || userLower === "laila") {
-      role = "psychologist";
-      name = "Dr. Laila";
-    } else if (userLower === "admin") {
-      role = "admin";
-      name = "System Admin";
-    } else {
-      return false;
-    }
-
-    const userObj = { username, name };
+    const { role, name } = foundUser;
+    const userObj = { username: foundUser.username, name };
     setUserRoleState(role);
     setCurrentUserState(userObj);
     localStorage.setItem("bloom_user_role", role || "");
     localStorage.setItem("bloom_current_user", JSON.stringify(userObj));
-    
-    // Default appropriate screen
+
     if (role === "parent") {
+      setParentAuthenticatedState(true);
       setActiveScreenState("parent");
     } else if (role === "admin") {
       setActiveScreenState("admin");
@@ -375,6 +385,76 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return true;
   };
 
+  const register = (
+    username: string,
+    name: string,
+    password: string,
+    role: "student" | "parent" | "teacher" | "psychologist" | "admin"
+  ): { success: boolean; error?: string } => {
+    const userLower = username.toLowerCase().trim();
+    if (!userLower || !password.trim() || !name.trim()) {
+      return { success: false, error: "All fields are required" };
+    }
+
+    const exists = registeredUsers.some(u => u.username.toLowerCase() === userLower);
+    if (exists) {
+      return { success: false, error: "register_error_exists" };
+    }
+
+    const newUser: RegisteredUser = {
+      username: username.trim(),
+      name: name.trim(),
+      password: password.trim(),
+      role
+    };
+
+    const nextUsers = [...registeredUsers, newUser];
+    setRegisteredUsers(nextUsers);
+    localStorage.setItem("bloom_registered_users", JSON.stringify(nextUsers));
+
+    // Initialize grades and levels for student role if they don't exist
+    if (role === "student") {
+      const studentName = newUser.name;
+      if (!studentGrades[studentName]) {
+        const nextGrades = {
+          ...studentGrades,
+          [studentName]: {
+            subject_math: 10.0,
+            subject_physics: 10.0,
+            subject_science: 10.0,
+            subject_arabic: 10.0,
+            subject_french: 10.0,
+            subject_english: 10.0,
+            subject_islamic: 10.0,
+            subject_history_geo: 10.0
+          }
+        };
+        setStudentGradesState(nextGrades);
+        localStorage.setItem("bloom_student_grades", JSON.stringify(nextGrades));
+      }
+
+      if (!studentLevels[studentName]) {
+        const nextLevels = {
+          ...studentLevels,
+          [studentName]: null
+        };
+        setStudentLevelsState(nextLevels);
+        localStorage.setItem("bloom_student_levels", JSON.stringify(nextLevels));
+      }
+
+      // Generate a family link code
+      const randomCode = "BLM-" + Math.random().toString(36).substring(2, 5).toUpperCase();
+      const nextCodes = {
+        ...familyLinkCodes,
+        [studentName]: randomCode
+      };
+      setFamilyLinkCodes(nextCodes);
+      localStorage.setItem("bloom_family_link_codes", JSON.stringify(nextCodes));
+    }
+
+    return { success: true };
+  };
+
   const logout = () => {
     setUserRoleState(null);
     setCurrentUserState(null);
@@ -385,7 +465,7 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Level operations
-  const updateStudentLevel = (student: "Sara" | "Ahmed", level: AlgerianLevel) => {
+  const updateStudentLevel = (student: string, level: AlgerianLevel) => {
     const updated = { ...studentLevels, [student]: level };
     setStudentLevelsState(updated);
     localStorage.setItem("bloom_student_levels", JSON.stringify(updated));
@@ -404,7 +484,7 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Grade operations
-  const updateGrade = (student: "Sara" | "Ahmed", subject: string, grade: number) => {
+  const updateGrade = (student: string, subject: string, grade: number) => {
     const updated = {
       ...studentGrades,
       [student]: {
@@ -594,9 +674,11 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         parentAuthenticated,
         parentAlerts,
         supportMessages,
+        registeredUsers,
         userRole,
         currentUser,
         login,
+        register,
         logout,
         studentGrades,
         updateGrade,

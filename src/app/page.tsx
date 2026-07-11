@@ -52,6 +52,8 @@ export default function App() {
     userRole,
     currentUser,
     login,
+    register,
+    registeredUsers,
     logout,
     setAppLanguage,
     setCurrentMood,
@@ -70,8 +72,10 @@ export default function App() {
     isRtl,
   } = useBloom();
 
+  const [isRegistering, setIsRegistering] = useState(false);
+
   // Intercept: show level picker for students who haven't chosen a level yet
-  const studentName = (currentUser?.name === "Ahmed" ? "Ahmed" : "Sara") as "Sara" | "Ahmed";
+  const studentName = currentUser?.name || "Sara";
   const needsLevelPick = userRole === "student" && !studentLevels[studentName];
 
   // local notification state for parents messages
@@ -104,13 +108,25 @@ export default function App() {
 
 
         {userRole === null ? (
-          <LoginScreen
-            t={t}
-            login={login}
-            appLanguage={appLanguage}
-            setAppLanguage={setAppLanguage}
-            isRtl={isRtl}
-          />
+          isRegistering ? (
+            <RegisterScreen
+              t={t}
+              register={register}
+              appLanguage={appLanguage}
+              setAppLanguage={setAppLanguage}
+              isRtl={isRtl}
+              onNavigateToLogin={() => setIsRegistering(false)}
+            />
+          ) : (
+            <LoginScreen
+              t={t}
+              login={login}
+              appLanguage={appLanguage}
+              setAppLanguage={setAppLanguage}
+              isRtl={isRtl}
+              onNavigateToRegister={() => setIsRegistering(true)}
+            />
+          )
         ) : needsLevelPick ? (
           <LevelPickerScreen t={t} studentName={studentName} onConfirm={(level) => { updateStudentLevel(studentName, level); }} />
         ) : (
@@ -223,10 +239,9 @@ export default function App() {
                     </div>
                     {/* Show school level + family code for students */}
                     {userRole === "student" && (() => {
-                      const sName = (currentUser?.name === "Ahmed" ? "Ahmed" : "Sara") as "Sara" | "Ahmed";
-                      const { studentLevels: levels, familyLinkCodes: codes } = { studentLevels, familyLinkCodes };
-                      const level = levels[sName];
-                      const code = codes[sName];
+                      const sName = currentUser?.name || "Sara";
+                      const level = studentLevels[sName];
+                      const code = familyLinkCodes[sName];
                       return (
                         <div className="flex flex-col gap-1.5 pt-1 border-t border-border-custom/40">
                           {level ? (
@@ -587,13 +602,15 @@ function LoginScreen({
   login,
   appLanguage,
   setAppLanguage,
-  isRtl
+  isRtl,
+  onNavigateToRegister
 }: {
   t: (k: string, ...a: (string | number)[]) => string;
   login: (u: string, p: string) => boolean;
   appLanguage: string;
   setAppLanguage: (lang: any) => void;
   isRtl: boolean;
+  onNavigateToRegister: () => void;
 }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -745,6 +762,217 @@ function LoginScreen({
             ))}
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={onNavigateToRegister}
+          className="text-xs text-primary font-black hover:underline text-center mt-2 focus:outline-none"
+        >
+          {t("register_no_account")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   COMPONENT: Register Screen
+   ========================================================================== */
+function RegisterScreen({
+  t,
+  register,
+  appLanguage,
+  setAppLanguage,
+  isRtl,
+  onNavigateToLogin
+}: {
+  t: (k: string, ...a: (string | number)[]) => string;
+  register: (u: string, n: string, p: string, r: any) => { success: boolean; error?: string };
+  appLanguage: string;
+  setAppLanguage: (lang: any) => void;
+  isRtl: boolean;
+  onNavigateToLogin: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"student" | "parent" | "teacher" | "psychologist">("student");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<boolean>(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+
+    const res = register(username, name, password, role);
+    if (!res.success) {
+      setError(res.error || "An error occurred");
+    } else {
+      setSuccess(true);
+      setName("");
+      setUsername("");
+      setPassword("");
+      // Wait a moment and navigate to login
+      setTimeout(() => {
+        onNavigateToLogin();
+      }, 1500);
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col justify-between p-6 relative z-20 overflow-y-auto scrollbar-none">
+      {/* Language Bar */}
+      <div className="flex justify-end items-center gap-1.5 mb-2">
+        <Globe size={14} className="text-text-secondary animate-pulse" />
+        <select
+          value={appLanguage}
+          onChange={(e) => setAppLanguage(e.target.value as any)}
+          className="text-xs font-bold bg-surface border border-border-custom text-text-primary rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          <option value="en">English</option>
+          <option value="ar">العربية</option>
+          <option value="fr">Français</option>
+          <option value="kab">Tamazight</option>
+        </select>
+      </div>
+
+      {/* Main Register Card */}
+      <div className="my-auto flex flex-col gap-5">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="w-16 h-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center shadow-lg shadow-primary/10 border border-primary/20 animate-pulse">
+            <Brain size={36} className="text-primary fill-primary/10" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-text-primary tracking-tight">
+              {t("register_title")}
+            </h2>
+            <p className="text-xs text-text-secondary mt-1 font-semibold">
+              {t("home_subtitle")}
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center gap-2.5 text-xs font-bold"
+            >
+              <AlertCircle size={16} className="shrink-0" />
+              <span>{t(error)}</span>
+            </motion.div>
+          )}
+
+          {success && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3 rounded-2xl bg-green-500/10 border border-green-500/20 text-green-500 flex items-center gap-2.5 text-xs font-bold"
+            >
+              <Check size={16} className="shrink-0" />
+              <span>{t("register_success")}</span>
+            </motion.div>
+          )}
+
+          {/* Full Name Field */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-text-secondary px-1">
+              {t("register_name")}
+            </label>
+            <div className="relative">
+              <span className={`absolute top-1/2 -translate-y-1/2 ${isRtl ? "right-3.5" : "left-3.5"} text-text-secondary`}>
+                <UserRound size={16} />
+              </span>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder={t("register_name")}
+                className={`w-full py-3 ${isRtl ? "pr-11 pl-4" : "pl-11 pr-4"} rounded-2xl bg-surface border border-border-custom focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-text-primary placeholder:text-text-secondary/60 outline-none transition-all`}
+              />
+            </div>
+          </div>
+
+          {/* Username Field */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-text-secondary px-1">
+              {t("login_username")}
+            </label>
+            <div className="relative">
+              <span className={`absolute top-1/2 -translate-y-1/2 ${isRtl ? "right-3.5" : "left-3.5"} text-text-secondary`}>
+                <UserRound size={16} />
+              </span>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                placeholder={t("login_username")}
+                className={`w-full py-3 ${isRtl ? "pr-11 pl-4" : "pl-11 pr-4"} rounded-2xl bg-surface border border-border-custom focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-text-primary placeholder:text-text-secondary/60 outline-none transition-all`}
+              />
+            </div>
+          </div>
+
+          {/* Password Field */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-text-secondary px-1">
+              {t("login_password")}
+            </label>
+            <div className="relative">
+              <span className={`absolute top-1/2 -translate-y-1/2 ${isRtl ? "right-3.5" : "left-3.5"} text-text-secondary`}>
+                <Lock size={16} />
+              </span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className={`w-full py-3 ${isRtl ? "pr-11 pl-4" : "pl-11 pr-4"} rounded-2xl bg-surface border border-border-custom focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-text-primary placeholder:text-text-secondary/60 outline-none transition-all`}
+              />
+            </div>
+          </div>
+
+          {/* Role Field */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-text-secondary px-1">
+              {t("register_role")}
+            </label>
+            <div className="relative">
+              <span className={`absolute top-1/2 -translate-y-1/2 ${isRtl ? "right-3.5" : "left-3.5"} text-text-secondary`}>
+                <UserRound size={16} />
+              </span>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as any)}
+                className={`w-full py-3 ${isRtl ? "pr-11 pl-4" : "pl-11 pr-4"} rounded-2xl bg-surface border border-border-custom focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-text-primary outline-none transition-all appearance-none`}
+              >
+                <option value="student">{t("role_student")}</option>
+                <option value="parent">{t("role_parent")}</option>
+                <option value="teacher">{t("role_teacher")}</option>
+                <option value="psychologist">{t("role_psychologist")}</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            className="w-full py-3.5 mt-2 rounded-2xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] hover:shadow-primary/30 transition-all"
+          >
+            {t("register_btn")}
+          </button>
+        </form>
+
+        <button
+          onClick={onNavigateToLogin}
+          className="text-xs text-primary font-black hover:underline text-center mt-2 focus:outline-none"
+        >
+          {t("register_have_account")}
+        </button>
       </div>
     </div>
   );
@@ -777,7 +1005,7 @@ function HomeScreen({
   const [celebrateGoalId, setCelebrateGoalId] = useState<string | null>(null);
   
   // Get active student name
-  const studentName = (userRole === "student" && currentUser?.name === "Ahmed") ? "Ahmed" : "Sara";
+  const studentName = userRole === "student" ? (currentUser?.name || "Sara") : "Sara";
   const grades = studentGrades[studentName] || {};
   
   // Calculate GPA dynamically out of 20
@@ -1312,12 +1540,13 @@ function HomeScreen({
    SCREEN: Academic Screen
    ========================================================================== */
 function AcademicScreen({ t }: { t: (k: string, ...a: (string | number)[]) => string }) {
-  const { studentGrades, updateGrade, userRole, currentUser } = useBloom();
-  const [teacherSelectedStudent, setTeacherSelectedStudent] = useState<"Sara" | "Ahmed">("Sara");
+  const { studentGrades, updateGrade, userRole, currentUser, registeredUsers } = useBloom();
+  const students = registeredUsers.filter(u => u.role === "student").map(u => u.name);
+  const [teacherSelectedStudent, setTeacherSelectedStudent] = useState<string>("Sara");
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
 
   // Identify who we are inspecting
-  const currentStudent = userRole === "teacher" ? teacherSelectedStudent : ((userRole === "student" && currentUser?.name === "Ahmed") ? "Ahmed" : "Sara");
+  const currentStudent = userRole === "teacher" ? (teacherSelectedStudent || students[0] || "Sara") : (userRole === "student" ? (currentUser?.name || "Sara") : "Sara");
   const grades = studentGrades[currentStudent] || {};
 
   // Calculate dynamic average GPA out of 20
@@ -1380,18 +1609,18 @@ function AcademicScreen({ t }: { t: (k: string, ...a: (string | number)[]) => st
             <p className="text-[10px] text-text-secondary">Select student & modify grades in real-time</p>
           </div>
           
-          <div className="flex gap-2">
-            {(["Sara", "Ahmed"] as const).map((sName) => (
+          <div className="flex gap-2 flex-wrap">
+            {students.map((sName) => (
               <button
                 key={sName}
                 onClick={() => setTeacherSelectedStudent(sName)}
-                className={`flex-1 py-2.5 rounded-2xl text-xs font-black border transition-all ${
+                className={`px-3 py-2.5 rounded-2xl text-xs font-black border transition-all ${
                   teacherSelectedStudent === sName
                     ? "bg-primary text-white border-primary"
                     : "bg-surface border-border-custom text-text-primary hover:bg-border-custom/20"
                 }`}
               >
-                {t(`parent_child_${sName.toLowerCase()}`)}
+                {t(`parent_child_${sName.toLowerCase()}`).startsWith("parent_child_") ? sName : t(`parent_child_${sName.toLowerCase()}`)}
               </button>
             ))}
           </div>
@@ -1609,7 +1838,7 @@ function GamesScreen({
   const { currentUser, userRole, studentLevels, appLanguage, customGames } = useBloom();
   const [activeGame, setActiveGame] = useState<string | null>(null);
 
-  const studentName = (userRole === "student" && currentUser?.name === "Ahmed") ? "Ahmed" : "Sara";
+  const studentName = (userRole === "student" && currentUser?.name) ? currentUser.name : "Sara";
   const studentLevel = studentLevels[studentName];
   const cycle = studentLevel?.cycle || "moyen";
 
@@ -2317,11 +2546,15 @@ function PsychologicalScreen({
   setCurrentMood: (m: string) => void;
   addPoints: (pts: number) => void;
 }) {
-  const { userRole, currentUser, moodLogs } = useBloom();
+  const { userRole, currentUser, moodLogs, registeredUsers } = useBloom();
   const [breathingActive, setBreathingActive] = useState<boolean>(false);
   const [breathingPhase, setBreathingPhase] = useState<"in" | "hold" | "out">("in");
   const [breathingTimer, setBreathingTimer] = useState<number>(60);
   const [showBreathingComplete, setShowBreathingComplete] = useState<boolean>(false);
+
+  const students = registeredUsers
+    .filter((u) => u.role === "student")
+    .map((u) => u.name);
 
   // Counselor guidance notes state stored locally
   const [guidanceNotes, setGuidanceNotes] = useState<Record<string, string[]>>(() => {
@@ -2336,7 +2569,14 @@ function PsychologicalScreen({
   });
 
   const [newAdvice, setNewAdvice] = useState("");
-  const [adviceStudent, setAdviceStudent] = useState<"Sara" | "Ahmed">("Sara");
+  const [adviceStudent, setAdviceStudent] = useState<string>("Sara");
+
+  // Keep adviceStudent updated if students list changes
+  useEffect(() => {
+    if (students.length > 0 && !students.includes(adviceStudent)) {
+      setAdviceStudent(students[0]);
+    }
+  }, [students, adviceStudent]);
 
   const saveAdvice = (student: string, notesList: string[]) => {
     const updated = { ...guidanceNotes, [student]: notesList };
@@ -2415,7 +2655,7 @@ function PsychologicalScreen({
     setBreathingActive(false);
   };
 
-  const activeStudentName = (userRole === "student" && currentUser?.name === "Ahmed") ? "Ahmed" : "Sara";
+  const activeStudentName = (userRole === "student" && currentUser?.name) ? currentUser.name : "Sara";
   const activeStudentAdvice = guidanceNotes[activeStudentName] || [];
 
   // === PSYCHOLOGIST PORTAL ===
@@ -2452,11 +2692,11 @@ function PsychologicalScreen({
         <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
           <h3 className="font-black text-sm text-text-primary">Post Guidance Recommendation</h3>
           <form onSubmit={handleAddAdvice} className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              {(["Sara", "Ahmed"] as const).map((sName) => (
+            <div className="flex gap-2 flex-wrap">
+              {students.map((sName) => (
                 <button type="button" key={sName} onClick={() => setAdviceStudent(sName)}
-                  className={`flex-1 py-1.5 rounded-xl text-xs font-black border transition-all ${adviceStudent === sName ? "bg-primary text-white border-primary" : "bg-surface border-border-custom text-text-primary hover:bg-border-custom/20"}`}>
-                  {t(`parent_child_${sName.toLowerCase()}`)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${adviceStudent === sName ? "bg-primary text-white border-primary" : "bg-surface border-border-custom text-text-primary hover:bg-border-custom/20"}`}>
+                  {t(`parent_child_${sName.toLowerCase()}`).startsWith("parent_child_") ? sName : t(`parent_child_${sName.toLowerCase()}`)}
                 </button>
               ))}
             </div>
@@ -2474,12 +2714,12 @@ function PsychologicalScreen({
         <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
           <h3 className="font-black text-sm text-text-primary">Advice History</h3>
           <div className="flex flex-col gap-3">
-            {["Sara", "Ahmed"].map((studentName) => {
+            {students.map((studentName) => {
               const notes = guidanceNotes[studentName] || [];
               return (
                 <div key={studentName} className="flex flex-col gap-1.5">
                   <span className="text-[10px] font-black text-text-secondary uppercase tracking-wider">
-                    {t(`parent_child_${studentName.toLowerCase()}`)} ({notes.length})
+                    {t(`parent_child_${studentName.toLowerCase()}`).startsWith("parent_child_") ? studentName : t(`parent_child_${studentName.toLowerCase()}`)} ({notes.length})
                   </span>
                   {notes.length === 0 ? (
                     <p className="text-[10px] text-text-secondary italic pl-2">No advice logged yet.</p>
@@ -2904,11 +3144,20 @@ function ParentScreen({
   const { studentGrades, linkChildAccount, linkedChildren, familyLinkCodes, studentLevels } = useBloom();
   const [pin, setPin] = useState<string>("");
   const [pinError, setPinError] = useState<boolean>(false);
-  const [selectedChild, setSelectedChild] = useState<"Sara" | "Ahmed">("Sara");
+  const [selectedChild, setSelectedChild] = useState<string>(() => {
+    return linkedChildren[0] || "Sara";
+  });
   const [supportText, setSupportText] = useState<string>("");
   const [showToast, setShowToast] = useState<boolean>(false);
   const [linkCode, setLinkCode] = useState<string>("");
   const [linkResult, setLinkResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Synchronize selectedChild with linkedChildren updates
+  useEffect(() => {
+    if (linkedChildren.length > 0 && !linkedChildren.includes(selectedChild)) {
+      setSelectedChild(linkedChildren[0]);
+    }
+  }, [linkedChildren, selectedChild]);
 
   const handleLinkSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2955,7 +3204,8 @@ function ParentScreen({
   };
 
   // Compute live GPA from context grades
-  const computeGPA = (student: "Sara" | "Ahmed") => {
+  // Compute live GPA from context grades
+  const computeGPA = (student: string) => {
     const grades = studentGrades[student] || {};
     const keys = Object.keys(grades);
     if (keys.length === 0) return 0;
@@ -2963,29 +3213,25 @@ function ParentScreen({
     return parseFloat((sum / keys.length).toFixed(2));
   };
 
-  const saraGPA = computeGPA("Sara");
-  const ahmedGPA = computeGPA("Ahmed");
+  const gpa = computeGPA(selectedChild);
+  const progress = Math.round((gpa / 20) * 100);
+  const activeStudentLevel = studentLevels[selectedChild];
+  
+  // Custom or mock levels/points/history based on child name
+  const points = selectedChild === "Ahmed" ? 1450 : 2350;
+  const history = selectedChild === "Ahmed" ? [13.5, 14.2, gpa] : (selectedChild === "Sara" ? [15.2, 15.8, gpa] : [gpa, gpa, gpa]);
+  const notes = selectedChild === "Ahmed" 
+    ? [t("parent_note_ahmed_1"), t("parent_note_ahmed_2")] 
+    : (selectedChild === "Sara" ? [t("parent_note_sara_1"), t("parent_note_sara_2")] : [t("Check out the custom guidance notes posted by the psychologist for coping recommendations.")]);
 
-  // Switcher child details (3-trimester history)
-  const childSara = {
-    gpa: saraGPA,
-    progress: Math.round((saraGPA / 20) * 100),
-    level: 12,
-    points: 2350,
-    history: [15.2, 15.8, saraGPA],
-    notes: [t("parent_note_sara_1"), t("parent_note_sara_2")]
+  const activeChildInfo = {
+    gpa,
+    progress,
+    level: activeStudentLevel?.year || 12,
+    points,
+    history,
+    notes
   };
-
-  const childAhmed = {
-    gpa: ahmedGPA,
-    progress: Math.round((ahmedGPA / 20) * 100),
-    level: 8,
-    points: 1450,
-    history: [13.5, 14.2, ahmedGPA],
-    notes: [t("parent_note_ahmed_1"), t("parent_note_ahmed_2")]
-  };
-
-  const activeChildInfo = selectedChild === "Sara" ? childSara : childAhmed;
 
   // Lockscreen keypad component
   if (!parentAuthenticated) {
@@ -3143,24 +3389,26 @@ function ParentScreen({
       </div>
 
       {/* Child Switcher Tabs */}
-      <div className="flex gap-2">
-        {["Sara", "Ahmed"].map((cName) => {
-          const isActive = selectedChild === cName;
-          return (
-            <button
-              key={cName}
-              onClick={() => setSelectedChild(cName as "Sara" | "Ahmed")}
-              className={`flex-1 py-3 px-4 rounded-2xl text-xs font-black transition-all border ${
-                isActive
-                  ? "bg-primary text-white border-primary shadow-xs"
-                  : "bg-surface border-border-custom text-text-primary hover:bg-border-custom/20"
-              }`}
-            >
-              {t(`parent_child_${cName.toLowerCase()}`)}
-            </button>
-          );
-        })}
-      </div>
+      {linkedChildren.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {linkedChildren.map((cName) => {
+            const isActive = selectedChild === cName;
+            return (
+              <button
+                key={cName}
+                onClick={() => setSelectedChild(cName)}
+                className={`px-4 py-3 rounded-2xl text-xs font-black transition-all border ${
+                  isActive
+                    ? "bg-primary text-white border-primary shadow-xs"
+                    : "bg-surface border-border-custom text-text-primary hover:bg-border-custom/20"
+                }`}
+              >
+                {t(`parent_child_${cName.toLowerCase()}`).startsWith("parent_child_") ? cName : t(`parent_child_${cName.toLowerCase()}`)}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Selected Child Reports Summary Card */}
       <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-4">
@@ -3321,7 +3569,8 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
     studentLevels,
     moodLogs,
     updateGrade,
-    appLanguage
+    appLanguage,
+    registeredUsers
   } = useBloom();
 
   // Admin sub-tab state
@@ -3346,10 +3595,21 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
   const [memEmojis, setMemEmojis] = useState("🐶,🐱,🦊,🐻,🦁,🐯");
   const [gameMsg, setGameMsg] = useState<string | null>(null);
 
+  const students = registeredUsers
+    .filter((u) => u.role === "student")
+    .map((u) => u.name);
+
   // ── Students state ──
-  const [selectedStudent, setSelectedStudent] = useState<"Sara" | "Ahmed">("Sara");
+  const [selectedStudent, setSelectedStudent] = useState<string>("Sara");
   const [editGrade, setEditGrade] = useState<Record<string, string>>({});
   const [gradeMsg, setGradeMsg] = useState<string | null>(null);
+
+  // Synchronize selectedStudent with students updates
+  useEffect(() => {
+    if (students.length > 0 && !students.includes(selectedStudent)) {
+      setSelectedStudent(students[0]);
+    }
+  }, [students, selectedStudent]);
 
   const CYCLE_LABELS: Record<AlgerianCycle, string> = {
     primaire: "Primaire",
@@ -3486,15 +3746,15 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
       {activeTab === "students" && (
         <>
           {/* Student Selector */}
-          <div className="flex gap-2">
-            {(["Sara", "Ahmed"] as const).map(name => (
+          <div className="flex gap-2 flex-wrap">
+            {students.map(name => (
               <button
                 key={name}
                 onClick={() => setSelectedStudent(name)}
-                className={`flex-1 py-2.5 rounded-2xl text-xs font-black transition-all ${
+                className={`px-3 py-2.5 rounded-2xl text-xs font-black transition-all ${
                   selectedStudent === name
                     ? "bg-primary text-white shadow-sm"
-                    : "bg-surface border border-border-custom text-text-secondary"
+                    : "bg-surface border border-border-custom text-text-secondary hover:bg-border-custom/20"
                 }`}
               >
                 {name}
