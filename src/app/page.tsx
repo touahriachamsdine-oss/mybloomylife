@@ -923,9 +923,7 @@ function HomeScreen({
     }
   };
 
-  // GPA Circular Progress calculations
-  const gpaPercent = (currentGPA / 20) * 100;
-  const strokeDashoffset = 150 - (150 * gpaPercent) / 100;
+
 
   const schoolDaysList = [
     { key: "sunday", label: "sunday", num: 0 },
@@ -1008,60 +1006,146 @@ function HomeScreen({
         </AnimatePresence>
       </div>
 
-      {/* Academic Quick widget */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col justify-between gap-3">
-          <span className="text-[11px] font-bold text-text-secondary">{t("home_academic_title")}</span>
-          <div className="flex items-center gap-3">
-            {/* GPA Ring */}
-            <div className="relative w-14 h-14 flex items-center justify-center shrink-0">
-              <svg className="w-full h-full -rotate-90">
-                <circle cx="28" cy="28" r="24" className="stroke-border-custom fill-none" strokeWidth="4" />
-                <circle
-                  cx="28"
-                  cy="28"
-                  r="24"
-                  className="stroke-primary fill-none transition-all duration-1000"
-                  strokeWidth="4"
-                  strokeDasharray="150"
-                  strokeDashoffset={strokeDashoffset}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span className="absolute text-[10px] font-black text-text-primary">{currentGPA}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs font-black text-text-primary">Moy. {currentGPA}</span>
-              <span className="text-[9px] text-green-500 font-bold">{t("gpa_status_excellent")}</span>
-            </div>
-          </div>
+      {/* GPA Stats Card — matches mobile HomeScreen layout */}
+      <div className="p-5 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+        {/* Header */}
+        <div className="flex justify-between items-center">
           <button
             onClick={() => setActiveScreen("academic")}
-            className="text-[10px] font-black text-primary hover:underline self-start flex items-center gap-0.5"
+            className="p-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 active:scale-95 transition-all"
           >
-            {t("home_view_reports")} <ChevronRight size={10} />
+            <TrendingUp size={16} />
           </button>
+          <span className="text-sm font-black text-text-primary">{t("gpa_overall")}</span>
         </div>
 
-        {/* Daily Challenges Widget */}
-        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col justify-between gap-3">
-          <span className="text-[11px] font-bold text-text-secondary">{t("home_challenge_title")}</span>
-          <div className="flex items-center gap-2">
-            <div style={{ background: 'var(--accent-yellow)', opacity: 0.25 }} className="p-2.5 rounded-2xl">
-              <Trophy size={20} className="fill-current" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs font-black text-text-primary">{t("game_brain_title")}</span>
-              <span className="text-[9px] text-text-secondary">{t("home_challenge_subtitle")}</span>
+        {/* Big GPA Number */}
+        <div className="flex items-end justify-end gap-1.5">
+          <span className="text-xs font-bold text-green-500 mb-1">{t("gpa_status_excellent")}</span>
+          <span className="text-sm text-text-secondary mb-1">/20</span>
+          <span className="text-4xl font-black text-text-primary leading-none">{currentGPA}</span>
+        </div>
+
+        {/* Sparkline Graph */}
+        {(() => {
+          const sparkData = [10, 12, 11, 14, 15, currentGPA];
+          const svgW = 300;
+          const svgH = 70;
+          const sparkCoords = sparkData.map((v, i) => ({
+            x: (i / (sparkData.length - 1)) * svgW,
+            y: svgH - (v / 20) * svgH,
+          }));
+          const sparkPath = sparkCoords
+            .map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`)
+            .join(" ");
+          return (
+            <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-14" preserveAspectRatio="none">
+              <path
+                d={sparkPath}
+                fill="none"
+                stroke="var(--primary)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {sparkCoords.map((c, i) => (
+                <circle
+                  key={i}
+                  cx={c.x}
+                  cy={c.y}
+                  r={i === sparkCoords.length - 1 ? 5 : 3}
+                  fill={i === sparkCoords.length - 1 ? "#4CAF50" : "var(--primary)"}
+                />
+              ))}
+            </svg>
+          );
+        })()}
+      </div>
+
+      {/* Points + Mood 2-column row */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Points Card */}
+        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col items-center gap-2">
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
+            style={{ background: "rgba(249, 213, 110, 0.2)" }}>
+            <span className="text-xl">⭐</span>
+          </div>
+          <span className="text-[11px] font-bold text-text-secondary text-center">{t("my_points")}</span>
+          <span className="text-xl font-black text-text-primary">{userPoints}</span>
+        </div>
+
+        {/* Mood Card */}
+        <button
+          onClick={() => setActiveScreen("psychological")}
+          className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col items-center gap-2 hover:bg-border-custom/30 active:scale-95 transition-all text-center"
+        >
+          <div className="w-10 h-10 rounded-2xl bg-green-500/10 flex items-center justify-center text-xl">
+            {moodEmojis[currentMood] || "😌"}
+          </div>
+          <span className="text-[11px] font-bold text-text-secondary">{t("home_mood_title")}</span>
+          <span className="text-xs font-black text-green-500">{t(currentMood)}</span>
+        </button>
+      </div>
+
+      {/* Weekly Progress Ring Card */}
+      {(() => {
+        const completedGoals = goals.filter((g) => g.currentProgress >= g.targetProgress).length;
+        const weeklyPct = goals.length > 0 ? Math.round((completedGoals / goals.length) * 100) : 75;
+        const r = 32;
+        const circ = +(2 * Math.PI * r).toFixed(2);
+        const dashOffset = +(circ - (circ * weeklyPct) / 100).toFixed(2);
+        return (
+          <div className="p-5 rounded-3xl bg-surface border border-border-custom shadow-xs">
+            <div className="flex items-center gap-4">
+              {/* Circular Progress Ring */}
+              <div className="relative w-20 h-20 shrink-0 flex items-center justify-center">
+                <svg className="w-full h-full -rotate-90">
+                  <circle cx="40" cy="40" r={r} className="stroke-border-custom fill-none" strokeWidth="7" />
+                  <circle
+                    cx="40"
+                    cy="40"
+                    r={r}
+                    className="stroke-primary fill-none transition-all duration-1000"
+                    strokeWidth="7"
+                    strokeDasharray={circ}
+                    strokeDashoffset={dashOffset}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="absolute text-xs font-black text-text-primary">{weeklyPct}%</span>
+              </div>
+              {/* Text */}
+              <div className="flex-1 flex flex-col gap-1">
+                <span className="text-sm font-black text-text-primary">{t("weekly_progress")}</span>
+                <span className="text-[11px] text-text-secondary leading-relaxed">
+                  {t("weekly_progress_motivation")}
+                </span>
+              </div>
             </div>
           </div>
-          <button
-            onClick={() => setActiveScreen("games")}
-            className="text-[10px] font-black text-primary hover:underline self-start flex items-center gap-0.5"
+        );
+      })()}
+
+      {/* Daily Challenge Widget */}
+      <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-2xl flex items-center justify-center"
+            style={{ background: "rgba(249, 213, 110, 0.2)" }}
           >
-            {t("home_play_now")} <ChevronRight size={10} />
-          </button>
+            <Trophy size={18} className="text-yellow-500" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs font-black text-text-primary">{t("home_challenge_title")}</span>
+            <span className="text-[9px] text-text-secondary">{t("home_challenge_subtitle")}</span>
+          </div>
         </div>
+        <button
+          onClick={() => setActiveScreen("games")}
+          className="flex items-center gap-1 text-[10px] font-black text-primary bg-primary/5 px-3 py-1.5 rounded-xl hover:bg-primary/10 active:scale-95 transition-all"
+        >
+          {t("home_play_now")} <ChevronRight size={10} />
+        </button>
       </div>
 
       {/* Algerian School Week Schedule & Prayer Times widgets */}
