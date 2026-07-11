@@ -99,22 +99,9 @@ export default function App() {
       </div>
 
       {/* Main Responsive Device Shell */}
-      <div className="relative w-full h-screen md:h-[850px] md:w-[395px] md:rounded-[50px] md:border-[10px] md:border-zinc-800 md:shadow-2xl overflow-hidden flex flex-col transition-all duration-300" style={{ background: 'linear-gradient(145deg, var(--bg-start) 0%, var(--bg-mid) 50%, var(--bg-end) 100%)' }}>
+      <div className="relative w-full h-screen md:h-[850px] md:w-[395px] md:rounded-[44px] md:shadow-2xl overflow-hidden flex flex-col transition-all duration-300" style={{ background: 'linear-gradient(145deg, var(--bg-start) 0%, var(--bg-mid) 50%, var(--bg-end) 100%)' }}>
         
-        {/* Dynamic Island / Status Bar */}
-        <div className="bg-transparent text-text-primary px-6 pt-3 pb-1 flex justify-between items-center text-xs font-semibold select-none z-30">
-          <span>09:41</span>
-          {/* Mock Speaker/Camera Island */}
-          <div className="w-[100px] h-[20px] bg-black rounded-full absolute left-1/2 -translate-x-1/2 top-2 hidden md:block" />
-          <div className="flex items-center gap-1.5">
-            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-              <path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19.4c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l1.9-1.9C9.13 19.64 10.53 20 12 20c4.97 0 9-4.03 9-9s-4.03-9-9-9zm0 15c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z" />
-            </svg>
-            <div className="w-5 h-2.5 border border-current rounded-sm p-0.5 flex items-center">
-              <div className="h-full w-full bg-current rounded-2xs" />
-            </div>
-          </div>
-        </div>
+
 
         {userRole === null ? (
           <LoginScreen
