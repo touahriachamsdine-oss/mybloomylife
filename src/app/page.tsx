@@ -35,7 +35,10 @@ import {
   Trophy,
   ChevronRight,
   Activity,
-  Bell
+  Bell,
+  BookOpen,
+  Smile,
+  Star
 } from "lucide-react";
 
 export default function App() {
@@ -2546,11 +2549,98 @@ function PsychologicalScreen({
   setCurrentMood: (m: string) => void;
   addPoints: (pts: number) => void;
 }) {
-  const { userRole, currentUser, moodLogs, registeredUsers } = useBloom();
+  const { userRole, currentUser, moodLogs, registeredUsers, isRtl } = useBloom();
+  const [activeSubTab, setActiveSubTab] = useState<"wellbeing" | "learning" | "gratitude">("wellbeing");
   const [breathingActive, setBreathingActive] = useState<boolean>(false);
   const [breathingPhase, setBreathingPhase] = useState<"in" | "hold" | "out">("in");
   const [breathingTimer, setBreathingTimer] = useState<number>(60);
   const [showBreathingComplete, setShowBreathingComplete] = useState<boolean>(false);
+
+  // === Learning Journal State (سجل التعلمات) ===
+  const [learningEntries, setLearningEntries] = useState<
+    Array<{ id: string; subject: string; text: string; emoji: string; date: string }>
+  >(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("bloom_learning_entries");
+      return saved ? JSON.parse(saved) : [
+        { id: "1", subject: "الرياضيات", text: "فهمت كيفية حل المعادلات التفاضلية البسيطة وتطبيقها في المسائل.", emoji: "📐", date: new Date().toLocaleDateString("ar-DZ") },
+        { id: "2", subject: "الفيزياء", text: "استوعبت قانون أوم وكيفية تقليل الضياع الحراري في الدارة.", emoji: "⚡", date: new Date().toLocaleDateString("ar-DZ") }
+      ];
+    }
+    return [];
+  });
+  const [newLearningText, setNewLearningText] = useState("");
+  const [newLearningSubject, setNewLearningSubject] = useState("عام");
+  const [newLearningEmoji, setNewLearningEmoji] = useState("💡");
+
+  const saveLearningEntries = (entries: typeof learningEntries) => {
+    setLearningEntries(entries);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("bloom_learning_entries", JSON.stringify(entries));
+    }
+  };
+
+  const handleAddLearning = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLearningText.trim()) return;
+    const newEntry = {
+      id: Date.now().toString(),
+      subject: newLearningSubject,
+      text: newLearningText.trim(),
+      emoji: newLearningEmoji,
+      date: new Date().toLocaleDateString(isRtl ? "ar-DZ" : "en-US")
+    };
+    saveLearningEntries([newEntry, ...learningEntries]);
+    addPoints(20);
+    setNewLearningText("");
+  };
+
+  const handleDeleteLearning = (idToDelete: string) => {
+    const updated = learningEntries.filter((e) => e.id !== idToDelete);
+    saveLearningEntries(updated);
+  };
+
+  // === Gratitude Journal State (سجل الامتنان) ===
+  const [gratitudeEntries, setGratitudeEntries] = useState<
+    Array<{ id: string; text: string; emoji: string; date: string }>
+  >(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("bloom_gratitude_entries");
+      return saved ? JSON.parse(saved) : [
+        { id: "1", text: "ممتن لصحة عائلتي والدعم الكبير الذي ألقاه من والدي.", emoji: "❤️", date: new Date().toLocaleDateString("ar-DZ") },
+        { id: "2", text: "ممتن لجو الدراسة الهادئ اليوم وإنجاز أهدافي اليومية.", emoji: "✨", date: new Date().toLocaleDateString("ar-DZ") }
+      ];
+    }
+    return [];
+  });
+  const [newGratitudeText, setNewGratitudeText] = useState("");
+  const [newGratitudeEmoji, setNewGratitudeEmoji] = useState("❤️");
+
+  const saveGratitudeEntries = (entries: typeof gratitudeEntries) => {
+    setGratitudeEntries(entries);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("bloom_gratitude_entries", JSON.stringify(entries));
+    }
+  };
+
+  const handleAddGratitude = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGratitudeText.trim()) return;
+    const newEntry = {
+      id: Date.now().toString(),
+      text: newGratitudeText.trim(),
+      emoji: newGratitudeEmoji,
+      date: new Date().toLocaleDateString(isRtl ? "ar-DZ" : "en-US")
+    };
+    saveGratitudeEntries([newEntry, ...gratitudeEntries]);
+    addPoints(20);
+    setNewGratitudeText("");
+  };
+
+  const handleDeleteGratitude = (idToDelete: string) => {
+    const updated = gratitudeEntries.filter((e) => e.id !== idToDelete);
+    saveGratitudeEntries(updated);
+  };
 
   const students = registeredUsers
     .filter((u) => u.role === "student")
@@ -2641,7 +2731,7 @@ function PsychologicalScreen({
       }
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => clearTimeout(interval);
   }, [breathingActive]);
 
   const handleStartBreathing = () => {
@@ -2744,155 +2834,436 @@ function PsychologicalScreen({
 
   return (
     <>
-      <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-1">
-        <h2 className="text-base font-black text-text-primary">{t("psy_title")}</h2>
-        <p className="text-[11px] text-text-secondary">{t("psy_instruction")}</p>
+      {/* Sub-Navigation Tabs separating Wellbeing, Learning Journal (سجل التعلمات), and Gratitude (سجل الامتنان) */}
+      <div className="flex gap-1 p-1 rounded-2xl bg-surface border border-border-custom shadow-xs mb-1">
+        <button
+          onClick={() => setActiveSubTab("wellbeing")}
+          className={`flex-1 py-2 px-1 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
+            activeSubTab === "wellbeing"
+              ? "bg-primary text-white shadow-xs"
+              : "text-text-secondary hover:text-text-primary hover:bg-border-custom/20"
+          }`}
+        >
+          <Heart size={13} />
+          <span>{isRtl ? "الدعم النفسي" : "Wellbeing"}</span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab("learning")}
+          className={`flex-1 py-2 px-1 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
+            activeSubTab === "learning"
+              ? "bg-primary text-white shadow-xs"
+              : "text-text-secondary hover:text-text-primary hover:bg-border-custom/20"
+          }`}
+        >
+          <BookOpen size={13} />
+          <span>{isRtl ? "سجل التعلمات" : "Learning Journal"}</span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab("gratitude")}
+          className={`flex-1 py-2 px-1 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1 ${
+            activeSubTab === "gratitude"
+              ? "bg-primary text-white shadow-xs"
+              : "text-text-secondary hover:text-text-primary hover:bg-border-custom/20"
+          }`}
+        >
+          <Sparkles size={13} />
+          <span>{isRtl ? "سجل الامتنان" : "Gratitude"}</span>
+        </button>
       </div>
 
-      {/* Counselor Advice Card for Students */}
-      {activeStudentAdvice.length > 0 && (
-        <div className="p-4 rounded-3xl bg-surface border border-primary/20 shadow-xs flex flex-col gap-3">
-          <div className="flex items-center gap-2 text-primary font-black text-xs uppercase tracking-wider">
-            <span>🧠</span>
-            <span>Guidance from your Counselor</span>
+      {activeSubTab === "wellbeing" && (
+        <>
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-1">
+            <h2 className="text-base font-black text-text-primary">{t("psy_title")}</h2>
+            <p className="text-[11px] text-text-secondary">{t("psy_instruction")}</p>
           </div>
-          <div className="flex flex-col gap-2">
-            {activeStudentAdvice.slice(0, 2).map((note, index) => (
-              <div key={index} className="p-2.5 rounded-2xl bg-primary/5 border border-primary/10 text-xs text-text-primary leading-relaxed font-semibold">
-                {note}
+
+          {/* Counselor Advice Card for Students */}
+          {activeStudentAdvice.length > 0 && (
+            <div className="p-4 rounded-3xl bg-surface border border-primary/20 shadow-xs flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-primary font-black text-xs uppercase tracking-wider">
+                <span>🧠</span>
+                <span>Guidance from your Counselor</span>
               </div>
-            ))}
+              <div className="flex flex-col gap-2">
+                {activeStudentAdvice.slice(0, 2).map((note, index) => (
+                  <div key={index} className="p-2.5 rounded-2xl bg-primary/5 border border-primary/10 text-xs text-text-primary leading-relaxed font-semibold">
+                    {note}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Interactive Mood Board */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <span className="text-xs font-bold text-text-primary">{t("psy_question")}</span>
+            <div className="grid grid-cols-5 gap-2 py-1 justify-center">
+              {Object.keys(moodEmojis).map((moodKey) => {
+                const isSelected = currentMood === moodKey;
+                return (
+                  <button
+                    key={moodKey}
+                    onClick={() => setCurrentMood(moodKey)}
+                    className={`aspect-square rounded-full flex flex-col items-center justify-center text-xl transition-all ${
+                      isSelected
+                        ? "bg-primary scale-110 shadow-md ring-4 ring-primary/10 text-white"
+                        : "bg-border-custom/30 text-text-primary hover:bg-border-custom/50"
+                    }`}
+                  >
+                    <span>{moodEmojis[moodKey]}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="text-xs text-text-secondary bg-border-custom/10 p-3 rounded-2xl border border-border-custom/50 leading-relaxed font-semibold">
+              {t(`mood_desc_${currentMood.replace("mood_", "")}`)}
+            </div>
+          </div>
+
+          {/* Suggested Breathing Exercise Panel */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <h3 className="font-black text-sm text-text-primary">{t("psy_exercises")}</h3>
+
+            {showBreathingComplete ? (
+              <div className="p-4 rounded-2xl bg-green-500/10 border border-green-500/20 text-center flex flex-col items-center gap-3 py-6">
+                <Award className="text-green-500 animate-bounce" size={40} />
+                <div>
+                  <p className="text-sm font-black text-green-700 dark:text-green-400">Exercise Completed!</p>
+                  <p className="text-[10px] text-text-secondary mt-1">Mental wellness score boosted: +50 points</p>
+                </div>
+                <button
+                  onClick={() => setShowBreathingComplete(false)}
+                  className="px-5 py-2 bg-green-500 text-white font-bold text-xs rounded-xl hover:bg-green-600 transition-all"
+                >
+                  Okay
+                </button>
+              </div>
+            ) : breathingActive ? (
+              /* Animated breathing session screen */
+              <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-950/40 border border-border-custom/50 flex flex-col items-center gap-6 py-8">
+                <div className="flex items-center justify-between w-full text-xs font-black text-text-secondary">
+                  <span>Time Left: {breathingTimer}s</span>
+                  <button onClick={handleStopBreathing} className="text-red-500 flex items-center gap-0.5">
+                    <X size={14} /> Stop
+                  </button>
+                </div>
+
+                {/* Pulsing Breathing Sphere */}
+                <div className="relative w-36 h-36 flex items-center justify-center">
+                  <div
+                    className={`absolute w-32 h-32 rounded-full bg-gradient-to-br from-primary/30 to-indigo-500/20 border border-primary/20 blur-sm transition-all duration-[4000ms] ease-in-out ${
+                      breathingPhase === "in"
+                        ? "scale-125 opacity-100 shadow-[0_0_30px_var(--primary)]"
+                        : breathingPhase === "hold"
+                        ? "scale-125 opacity-80"
+                        : "scale-90 opacity-40"
+                    }`}
+                  />
+                  <div
+                    className={`w-24 h-24 rounded-full bg-primary flex items-center justify-center text-white font-black text-xs shadow-md transition-all duration-[4000ms] ease-in-out ${
+                      breathingPhase === "in" ? "scale-125" : breathingPhase === "hold" ? "scale-125" : "scale-90"
+                    }`}
+                  >
+                    {breathingPhase === "in" && "Inhale"}
+                    {breathingPhase === "hold" && "Hold"}
+                    {breathingPhase === "out" && "Exhale"}
+                  </div>
+                </div>
+
+                <p className="text-xs font-semibold text-text-secondary text-center px-4 leading-relaxed">
+                  {breathingPhase === "in" && "Slowly fill your lungs with fresh energy... 🌬️"}
+                  {breathingPhase === "hold" && "Pause and retain this calmness... 🧘"}
+                  {breathingPhase === "out" && "Release all tension and stress... 💨"}
+                </p>
+              </div>
+            ) : (
+              /* Default static exercise selection */
+              <div className="flex flex-col gap-3">
+                <div className="p-3.5 rounded-2xl bg-border-custom/10 border border-border-custom/50 flex justify-between items-center gap-3">
+                  <div className="flex-1 flex flex-col gap-0.5">
+                    <span className="text-xs font-black text-text-primary">{t("psy_ex_breathing")}</span>
+                    <span className="text-[10px] text-text-secondary">{t("psy_ex_breathing_desc")}</span>
+                    <span className="text-[9px] text-primary font-black mt-1">{t("psy_ex_breathing_duration")}</span>
+                  </div>
+                  <button
+                    onClick={handleStartBreathing}
+                    className="px-4 py-2.5 bg-primary text-white text-xs font-black rounded-xl hover:scale-105 active:scale-95 transition-all shadow-xs shrink-0"
+                  >
+                    {t("psy_start")}
+                  </button>
+                </div>
+
+                {/* Static tips widgets offline */}
+                {[
+                  { title: t("psy_ex_writing"), desc: t("psy_ex_writing_desc"), dur: t("psy_ex_writing_duration") },
+                  { title: t("psy_ex_walking"), desc: t("psy_ex_walking_desc"), dur: t("psy_ex_walking_duration") }
+                ].map((ex, idx) => (
+                  <div key={idx} className="p-3.5 rounded-2xl bg-border-custom/10 border border-border-custom/50 flex justify-between items-center gap-3 opacity-80">
+                    <div className="flex-1 flex flex-col gap-0.5">
+                      <span className="text-xs font-black text-text-primary">{ex.title}</span>
+                      <span className="text-[10px] text-text-secondary">{ex.desc}</span>
+                      <span className="text-[9px] text-text-secondary font-bold mt-1">{ex.dur}</span>
+                    </div>
+                    <span className="text-xs text-text-secondary font-black italic">Offline Activity</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Tip of the Day card */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
+            <h3 className="font-black text-xs text-text-secondary flex items-center gap-1.5 uppercase tracking-wider">
+              <Activity size={12} className="text-primary" />
+              {t("psy_tip_title")}
+            </h3>
+            <p className="text-xs text-text-primary leading-relaxed font-semibold">
+              {t("psy_tip_text")}
+            </p>
+          </div>
+        </>
+      )}
+
+      {activeSubTab === "learning" && (
+        <div className="flex flex-col gap-4">
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-black text-text-primary flex items-center gap-2">
+                <BookOpen className="text-primary" size={20} />
+                <span>{isRtl ? "سجل التعلمات" : "Learning Journal"}</span>
+              </h2>
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+                {learningEntries.length} {isRtl ? "مدونات" : "entries"}
+              </span>
+            </div>
+            <p className="text-[11px] text-text-secondary leading-relaxed font-semibold">
+              {isRtl
+                ? "دون الدروس والأفكار والمهارات الجديدة التي اكتسبتها اليوم لتترسخ في ذهنك. تكسب 20 نقطة لكل تدوينة جديدة!"
+                : "Record key lessons, formulas, and new insights you gained today. Gain +20 points per reflection!"}
+            </p>
+          </div>
+
+          {/* Form to add a Learning entry */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <h3 className="font-black text-xs text-text-primary uppercase tracking-wider flex items-center gap-1.5">
+              <Plus size={14} className="text-primary" />
+              <span>{isRtl ? "إضافة تعلم جديد" : "Add New Reflection"}</span>
+            </h3>
+
+            <form onSubmit={handleAddLearning} className="flex flex-col gap-3">
+              <div className="flex gap-2 flex-wrap">
+                {["عام", "الرياضيات", "الفيزياء", "العلوم", "اللغات", "التاريخ"].map((sub) => (
+                  <button
+                    key={sub}
+                    type="button"
+                    onClick={() => setNewLearningSubject(sub)}
+                    className={`px-3 py-1 rounded-xl text-xs font-black border transition-all ${
+                      newLearningSubject === sub
+                        ? "bg-primary text-white border-primary shadow-xs"
+                        : "bg-surface border-border-custom text-text-secondary hover:text-text-primary"
+                    }`}
+                  >
+                    {sub}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-1.5">
+                {["💡", "📐", "🧪", "📖", "🎯", "🚀"].map((em) => (
+                  <button
+                    key={em}
+                    type="button"
+                    onClick={() => setNewLearningEmoji(em)}
+                    className={`p-1.5 rounded-xl border text-base transition-all ${
+                      newLearningEmoji === em
+                        ? "bg-primary/20 border-primary scale-110"
+                        : "bg-surface border-border-custom hover:bg-border-custom/20"
+                    }`}
+                  >
+                    {em}
+                  </button>
+                ))}
+              </div>
+
+              <textarea
+                value={newLearningText}
+                onChange={(e) => setNewLearningText(e.target.value)}
+                placeholder={
+                  isRtl
+                    ? "ما الذي تعلمته وفهمته اليوم؟ (مثال: فهمت مبرهنة فيثاغورس وكيفية استخدامها في إيجاد الوتر)"
+                    : "What key insight or concept did you master today?"
+                }
+                rows={3}
+                required
+                className="w-full p-3 rounded-2xl border border-border-custom bg-surface text-xs focus:ring-2 focus:ring-primary/20 outline-none resize-none text-text-primary font-semibold leading-relaxed"
+              />
+
+              <button
+                type="submit"
+                className="w-full bg-primary text-white py-3 rounded-2xl text-xs font-black shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+              >
+                <span>{newLearningEmoji}</span>
+                <span>{isRtl ? "حفظ في سجل التعلمات (+20 نقطة)" : "Save Learning Entry (+20 Pts)"}</span>
+              </button>
+            </form>
+          </div>
+
+          {/* List of Learning entries */}
+          <div className="flex flex-col gap-2.5">
+            {learningEntries.length === 0 ? (
+              <div className="p-6 text-center rounded-3xl bg-surface border border-border-custom/60 flex flex-col items-center gap-2">
+                <span className="text-3xl">📚</span>
+                <p className="text-xs font-bold text-text-secondary">
+                  {isRtl ? "لا توجد تعلمات مدونة بعد. ابدأ بتدوين أول درس واكسب Points!" : "No learning entries logged yet."}
+                </p>
+              </div>
+            ) : (
+              learningEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="p-3.5 rounded-2xl bg-surface border border-border-custom/70 shadow-xs flex flex-col gap-2 relative group"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{entry.emoji}</span>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-primary/10 text-primary border border-primary/20">
+                        {entry.subject}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-bold text-text-secondary">{entry.date}</span>
+                      <button
+                        onClick={() => handleDeleteLearning(entry.id)}
+                        className="text-red-400 hover:text-red-600 p-1"
+                        aria-label="Delete entry"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs font-semibold text-text-primary leading-relaxed pr-1">
+                    {entry.text}
+                  </p>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
 
-      {/* Interactive Mood Board */}
-      <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
-        <span className="text-xs font-bold text-text-primary">{t("psy_question")}</span>
-        <div className="grid grid-cols-5 gap-2 py-1 justify-center">
-          {Object.keys(moodEmojis).map((moodKey) => {
-            const isSelected = currentMood === moodKey;
-            return (
-              <button
-                key={moodKey}
-                onClick={() => setCurrentMood(moodKey)}
-                className={`aspect-square rounded-full flex flex-col items-center justify-center text-xl transition-all ${
-                  isSelected
-                    ? "bg-primary scale-110 shadow-md ring-4 ring-primary/10 text-white"
-                    : "bg-border-custom/30 text-text-primary hover:bg-border-custom/50"
-                }`}
-              >
-                <span>{moodEmojis[moodKey]}</span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="text-xs text-text-secondary bg-border-custom/10 p-3 rounded-2xl border border-border-custom/50 leading-relaxed font-semibold">
-          {t(`mood_desc_${currentMood.replace("mood_", "")}`)}
-        </div>
-      </div>
-
-      {/* Suggested Breathing Exercise Panel */}
-      <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
-        <h3 className="font-black text-sm text-text-primary">{t("psy_exercises")}</h3>
-
-        {showBreathingComplete ? (
-          <div className="p-4 rounded-2xl bg-green-500/10 border border-green-500/20 text-center flex flex-col items-center gap-3 py-6">
-            <Award className="text-green-500 animate-bounce" size={40} />
-            <div>
-              <p className="text-sm font-black text-green-700 dark:text-green-400">Exercise Completed!</p>
-              <p className="text-[10px] text-text-secondary mt-1">Mental wellness score boosted: +50 points</p>
+      {activeSubTab === "gratitude" && (
+        <div className="flex flex-col gap-4">
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-black text-text-primary flex items-center gap-2">
+                <Sparkles className="text-pink-500" size={20} />
+                <span>{isRtl ? "سجل الامتنان" : "Gratitude Journal"}</span>
+              </h2>
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20">
+                {gratitudeEntries.length} {isRtl ? "لحظات" : "moments"}
+              </span>
             </div>
-            <button
-              onClick={() => setShowBreathingComplete(false)}
-              className="px-5 py-2 bg-green-500 text-white font-bold text-xs rounded-xl hover:bg-green-600 transition-all"
-            >
-              Okay
-            </button>
-          </div>
-        ) : breathingActive ? (
-          /* Animated breathing session screen */
-          <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-950/40 border border-border-custom/50 flex flex-col items-center gap-6 py-8">
-            <div className="flex items-center justify-between w-full text-xs font-black text-text-secondary">
-              <span>Time Left: {breathingTimer}s</span>
-              <button onClick={handleStopBreathing} className="text-red-500 flex items-center gap-0.5">
-                <X size={14} /> Stop
-              </button>
-            </div>
-
-            {/* Pulsing Breathing Sphere */}
-            <div className="relative w-36 h-36 flex items-center justify-center">
-              <div
-                className={`absolute w-32 h-32 rounded-full bg-gradient-to-br from-primary/30 to-indigo-500/20 border border-primary/20 blur-sm transition-all duration-[4000ms] ease-in-out ${
-                  breathingPhase === "in"
-                    ? "scale-125 opacity-100 shadow-[0_0_30px_var(--primary)]"
-                    : breathingPhase === "hold"
-                    ? "scale-125 opacity-80"
-                    : "scale-90 opacity-40"
-                }`}
-              />
-              <div
-                className={`w-24 h-24 rounded-full bg-primary flex items-center justify-center text-white font-black text-xs shadow-md transition-all duration-[4000ms] ease-in-out ${
-                  breathingPhase === "in" ? "scale-125" : breathingPhase === "hold" ? "scale-125" : "scale-90"
-                }`}
-              >
-                {breathingPhase === "in" && "Inhale"}
-                {breathingPhase === "hold" && "Hold"}
-                {breathingPhase === "out" && "Exhale"}
-              </div>
-            </div>
-
-            <p className="text-xs font-semibold text-text-secondary text-center px-4 leading-relaxed">
-              {breathingPhase === "in" && "Slowly fill your lungs with fresh energy... 🌬️"}
-              {breathingPhase === "hold" && "Pause and retain this calmness... 🧘"}
-              {breathingPhase === "out" && "Release all tension and stress... 💨"}
+            <p className="text-[11px] text-text-secondary leading-relaxed font-semibold">
+              {isRtl
+                ? "دون أشياء جميلة ولحظات نعم تشعر بالامتنان والتقدير لأجلها اليوم. تكسب 20 نقطة لكل تدوينة!"
+                : "Reflect on moments, blessings, and kind gestures you are grateful for today. Earn +20 points per entry!"}
             </p>
           </div>
-        ) : (
-          /* Default static exercise selection */
-          <div className="flex flex-col gap-3">
-            <div className="p-3.5 rounded-2xl bg-border-custom/10 border border-border-custom/50 flex justify-between items-center gap-3">
-              <div className="flex-1 flex flex-col gap-0.5">
-                <span className="text-xs font-black text-text-primary">{t("psy_ex_breathing")}</span>
-                <span className="text-[10px] text-text-secondary">{t("psy_ex_breathing_desc")}</span>
-                <span className="text-[9px] text-primary font-black mt-1">{t("psy_ex_breathing_duration")}</span>
+
+          {/* Form to add a Gratitude entry */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <h3 className="font-black text-xs text-text-primary uppercase tracking-wider flex items-center gap-1.5">
+              <Heart size={14} className="text-pink-500" />
+              <span>{isRtl ? "ما الذي تشعر بالامتنان لأجله اليوم؟" : "What are you thankful for?"}</span>
+            </h3>
+
+            <form onSubmit={handleAddGratitude} className="flex flex-col gap-3">
+              <div className="flex gap-2 justify-center">
+                {["❤️", "🌸", "✨", "☀️", "🌟", "🍀", "🌈"].map((em) => (
+                  <button
+                    key={em}
+                    type="button"
+                    onClick={() => setNewGratitudeEmoji(em)}
+                    className={`p-2 rounded-2xl border text-lg transition-all ${
+                      newGratitudeEmoji === em
+                        ? "bg-pink-500/20 border-pink-500 scale-110 shadow-xs"
+                        : "bg-surface border-border-custom hover:bg-border-custom/20"
+                    }`}
+                  >
+                    {em}
+                  </button>
+                ))}
               </div>
+
+              <textarea
+                value={newGratitudeText}
+                onChange={(e) => setNewGratitudeText(e.target.value)}
+                placeholder={
+                  isRtl
+                    ? "أنا ممتن اليوم لـ... (مثال: تشجيع أستاذي لي، صحة عائلتي، أو لحظة هدوء مفيدة)"
+                    : "I am grateful for..."
+                }
+                rows={3}
+                required
+                className="w-full p-3 rounded-2xl border border-border-custom bg-surface text-xs focus:ring-2 focus:ring-pink-500/20 outline-none resize-none text-text-primary font-semibold leading-relaxed"
+              />
+
               <button
-                onClick={handleStartBreathing}
-                className="px-4 py-2.5 bg-primary text-white text-xs font-black rounded-xl hover:scale-105 active:scale-95 transition-all shadow-xs shrink-0"
+                type="submit"
+                className="w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-3 rounded-2xl text-xs font-black shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2"
               >
-                {t("psy_start")}
+                <span>{newGratitudeEmoji}</span>
+                <span>{isRtl ? "حفظ في سجل الامتنان (+20 نقطة)" : "Save Gratitude Entry (+20 Pts)"}</span>
               </button>
-            </div>
-
-            {/* Static tips widgets offline */}
-            {[
-              { title: t("psy_ex_writing"), desc: t("psy_ex_writing_desc"), dur: t("psy_ex_writing_duration") },
-              { title: t("psy_ex_walking"), desc: t("psy_ex_walking_desc"), dur: t("psy_ex_walking_duration") }
-            ].map((ex, idx) => (
-              <div key={idx} className="p-3.5 rounded-2xl bg-border-custom/10 border border-border-custom/50 flex justify-between items-center gap-3 opacity-80">
-                <div className="flex-1 flex flex-col gap-0.5">
-                  <span className="text-xs font-black text-text-primary">{ex.title}</span>
-                  <span className="text-[10px] text-text-secondary">{ex.desc}</span>
-                  <span className="text-[9px] text-text-secondary font-bold mt-1">{ex.dur}</span>
-                </div>
-                <span className="text-xs text-text-secondary font-black italic">Offline Activity</span>
-              </div>
-            ))}
+            </form>
           </div>
-        )}
-      </div>
 
-      {/* Tip of the Day card */}
-      <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
-        <h3 className="font-black text-xs text-text-secondary flex items-center gap-1.5 uppercase tracking-wider">
-          <Activity size={12} className="text-primary" />
-          {t("psy_tip_title")}
-        </h3>
-        <p className="text-xs text-text-primary leading-relaxed font-semibold">
-          {t("psy_tip_text")}
-        </p>
-      </div>
+          {/* List of Gratitude entries */}
+          <div className="flex flex-col gap-2.5">
+            {gratitudeEntries.length === 0 ? (
+              <div className="p-6 text-center rounded-3xl bg-surface border border-border-custom/60 flex flex-col items-center gap-2">
+                <span className="text-3xl">💖</span>
+                <p className="text-xs font-bold text-text-secondary">
+                  {isRtl ? "لم تضف أية لحظات امتنان بعد. اذكر نعمة واحدة ممتن لها اليوم!" : "No gratitude moments logged yet."}
+                </p>
+              </div>
+            ) : (
+              gratitudeEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="p-3.5 rounded-2xl bg-surface border border-pink-500/20 shadow-xs flex flex-col gap-2 relative"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg">{entry.emoji}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-bold text-text-secondary">{entry.date}</span>
+                      <button
+                        onClick={() => handleDeleteGratitude(entry.id)}
+                        className="text-red-400 hover:text-red-600 p-1"
+                        aria-label="Delete entry"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs font-semibold text-text-primary leading-relaxed pr-1">
+                    {entry.text}
+                  </p>
+                </div>
+              ))
+            )}
+
+            {/* Inspirational Quote box */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-indigo-500/10 border border-pink-500/20 text-center flex flex-col gap-1 mt-1">
+              <span className="text-xs font-black text-pink-600 dark:text-pink-300">✨ حكمة اليوم</span>
+              <p className="text-[11px] text-text-secondary font-semibold italic">
+                &quot;الامتنان يزيد النعم ويمنح النفس الراحة والاطمئنان والسكينة.&quot;
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
