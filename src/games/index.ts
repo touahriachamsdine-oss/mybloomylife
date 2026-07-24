@@ -1,0 +1,13 @@
+export { default as MathQuizGame } from './MathQuizGame';
+export { default as MemoryMatchingGame } from './MemoryMatchingGame';
+export { default as SpeedArithmeticGame } from './SpeedArithmeticGame';
+export { default as WordBuilderGame } from './WordBuilderGame';
+export { default as VocabMatchGame } from './VocabMatchGame';
+export { default as IslamicQuizGame } from './IslamicQuizGame';
+export { default as FlashcardsGame } from './FlashcardsGame';
+export { default as TimelineGame } from './TimelineGame';
+export { default as PhysicsLabGame } from './PhysicsLabGame';
+export { default as SpellingBeeGame } from './SpellingBeeGame';
+export { default as CrosswordGame } from './CrosswordGame';
+export { default as WilayaMatchGame } from './WilayaMatchGame';
+export * from './types';

@@ -1,7 +1,21 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { useBloom, AppLanguage, Goal, AlgerianLevel, AlgerianCycle, SUBJECTS_BY_CYCLE } from "@/context/BloomContext";
+import React, { useState, useEffect } from "react";
+import { useBloom, AppLanguage, Goal, AlgerianLevel, AlgerianCycle, SUBJECTS_BY_CYCLE, ParentAlert } from "@/context/BloomContext";
+import {
+  MathQuizGame,
+  MemoryMatchingGame,
+  SpeedArithmeticGame,
+  WordBuilderGame,
+  VocabMatchGame,
+  IslamicQuizGame,
+  FlashcardsGame,
+  TimelineGame,
+  PhysicsLabGame,
+  SpellingBeeGame,
+  CrosswordGame,
+  WilayaMatchGame,
+} from "@/games";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home as HomeIcon,
@@ -26,6 +40,8 @@ import {
   Menu,
   Settings,
   Globe,
+  Download,
+  Upload,
   Coins,
   Shield,
   Sparkle,
@@ -38,7 +54,8 @@ import {
   Bell,
   BookOpen,
   Smile,
-  Star
+  Star,
+  Zap
 } from "lucide-react";
 
 export default function App() {
@@ -90,7 +107,40 @@ export default function App() {
       // Show the latest support message as a toast on the child's interface
       setActiveSupportMessage(supportMessages[0].message);
     }
-  }, [supportMessages]);
+  }, [supportMessages, setActiveSupportMessage]);
+
+  const handleExportData = () => {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith("bloom_"));
+    const data: Record<string, string> = {};
+    keys.forEach(k => { data[k] = localStorage.getItem(k) || ""; });
+    data.bloom_exported_at = new Date().toISOString();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mybloom-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        const bloomKeys = Object.keys(data).filter(k => k.startsWith("bloom_"));
+        if (bloomKeys.length === 0) throw new Error("No bloom_ keys found");
+        bloomKeys.forEach(k => localStorage.setItem(k, data[k]));
+        window.location.reload();
+      } catch {
+        alert(t("backup_import_invalid"));
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-0 md:p-6 font-sans" style={{ background: 'linear-gradient(145deg, var(--bg-start) 0%, var(--bg-mid) 50%, var(--bg-end) 100%)' }}>
@@ -351,6 +401,31 @@ export default function App() {
 
 
 
+                  {/* Data Backup / Restore */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-text-secondary flex items-center gap-1.5">
+                      <Download size={12} />
+                      {t("backup_title")}
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={handleExportData}
+                        className="text-xs py-2 px-1 rounded-xl font-bold border transition-all border-border-custom hover:bg-border-custom/30 text-text-primary flex items-center justify-center gap-1"
+                      >
+                        <Download size={12} /> {t("backup_export")}
+                      </button>
+                      <label className="text-xs py-2 px-1 rounded-xl font-bold border transition-all border-border-custom hover:bg-border-custom/30 text-text-primary flex items-center justify-center gap-1 cursor-pointer">
+                        <Upload size={12} /> {t("backup_import")}
+                        <input
+                          type="file"
+                          accept=".json"
+                          className="hidden"
+                          onChange={handleImportData}
+                        />
+                      </label>
+                    </div>
+                  </div>
+
                   {/* Log Out button in the drawer */}
                   <button
                     onClick={() => {
@@ -446,39 +521,6 @@ export default function App() {
 /* ==========================================================================
    COMPONENT: Level Picker Screen (Algerian School System)
    ========================================================================== */
-const ALGERIAN_LEVELS: { cycle: AlgerianCycle; label: string; years: { year: number; label: string; tracks?: string[] }[] }[] = [
-  {
-    cycle: "primaire",
-    label: "الابتدائي — Primaire",
-    years: [
-      { year: 1, label: "1ère AP" },
-      { year: 2, label: "2ème AP" },
-      { year: 3, label: "3ème AP" },
-      { year: 4, label: "4ème AP" },
-      { year: 5, label: "5ème AP" }
-    ]
-  },
-  {
-    cycle: "moyen",
-    label: "المتوسط — Moyen (CEM)",
-    years: [
-      { year: 1, label: "1ère AM" },
-      { year: 2, label: "2ème AM" },
-      { year: 3, label: "3ème AM" },
-      { year: 4, label: "4ème AM — BEM" }
-    ]
-  },
-  {
-    cycle: "lycee",
-    label: "الثانوي — Lycée",
-    years: [
-      { year: 1, label: "1ère AS — Tronc commun" },
-      { year: 2, label: "2ème AS", tracks: ["Sciences Naturelles", "Sciences Physiques", "Mathématiques", "Lettres & Philosophie", "Gestion & Économie"] },
-      { year: 3, label: "3ème AS — BAC", tracks: ["Sciences Naturelles", "Sciences Physiques", "Mathématiques", "Lettres & Philosophie", "Gestion & Économie"] }
-    ]
-  }
-];
-
 function LevelPickerScreen({
   t,
   studentName,
@@ -1875,8 +1917,54 @@ function GamesScreen({
     );
   }
 
+  if (activeGame === "speedArithmetic") {
+    return <SpeedArithmeticGame t={t} onExit={() => setActiveGame(null)} addPoints={addPoints} cycle={cycle} />;
+  }
+  if (activeGame === "wordBuilder") {
+    return <WordBuilderGame t={t} onExit={() => setActiveGame(null)} addPoints={addPoints} cycle={cycle} />;
+  }
+  if (activeGame === "vocabMatch") {
+    return <VocabMatchGame t={t} onExit={() => setActiveGame(null)} addPoints={addPoints} cycle={cycle} />;
+  }
+  if (activeGame === "islamicQuiz") {
+    return <IslamicQuizGame t={t} onExit={() => setActiveGame(null)} addPoints={addPoints} cycle={cycle} appLanguage={appLanguage} />;
+  }
+  if (activeGame === "flashcards") {
+    return <FlashcardsGame t={t} onExit={() => setActiveGame(null)} addPoints={addPoints} cycle={cycle} />;
+  }
+  if (activeGame === "timeline") {
+    return <TimelineGame t={t} onExit={() => setActiveGame(null)} addPoints={addPoints} cycle={cycle} />;
+  }
+  if (activeGame === "physicsLab") {
+    return <PhysicsLabGame t={t} onExit={() => setActiveGame(null)} addPoints={addPoints} cycle={cycle} />;
+  }
+  if (activeGame === "spellingBee") {
+    return <SpellingBeeGame t={t} onExit={() => setActiveGame(null)} addPoints={addPoints} cycle={cycle} />;
+  }
+  if (activeGame === "crossword") {
+    return <CrosswordGame t={t} onExit={() => setActiveGame(null)} addPoints={addPoints} cycle={cycle} />;
+  }
+  if (activeGame === "wilayaMatch") {
+    return <WilayaMatchGame t={t} onExit={() => setActiveGame(null)} addPoints={addPoints} cycle={cycle} />;
+  }
+
   // Custom games matching student's cycle
   const levelCustomGames = customGames?.filter(g => g.cycle === cycle) || [];
+
+  const gameList = [
+    { id: "memory", title: t("mem_title"), desc: cycle === "primaire" ? "Fun emoji matching to boost focus and memory." : cycle === "moyen" ? "Match math and school symbols to train your cognitive focus." : "Advanced science, technology and career symbols challenge.", icon: <Brain size={120} />, tag: t("game_brain_title"), tagBg: "bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400" },
+    { id: "math", title: t("game_math_challenge"), desc: cycle === "primaire" ? "Test your skills with fun arithmetic and daily word puzzles." : cycle === "moyen" ? "Intermediate algebraic equations and geometry problems." : "High-level calculus, trigonometry and advanced logic puzzles.", icon: <Trophy size={120} />, tag: t("game_challenges_title"), tagBg: "", tagStyle: { background: 'var(--accent-yellow)', opacity: 0.6, color: 'var(--text-primary)' } },
+    { id: "speedArithmetic", title: "Speed Arithmetic", desc: cycle === "primaire" ? "Quick addition and subtraction challenges." : cycle === "moyen" ? "Rapid mental math with multiplication." : "Advanced arithmetic under time pressure.", icon: <Zap size={120} />, tag: "Mental Math", tagBg: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300" },
+    { id: "wordBuilder", title: "Word Builder", desc: "Unscramble letters to form the correct word. Build vocabulary across subjects.", icon: <BookOpen size={120} />, tag: "Vocabulary", tagBg: "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300" },
+    { id: "vocabMatch", title: "Vocab Match", desc: "Match words to their translations. Learn Arabic-English vocabulary pairs.", icon: <Globe size={120} />, tag: "Language", tagBg: "bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300" },
+    { id: "islamicQuiz", title: "Islamic Education", desc: "Test your knowledge of Islamic pillars, Quran, and Hadith.", icon: <Star size={120} />, tag: "Islamic Studies", tagBg: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" },
+    { id: "flashcards", title: "Science Flashcards", desc: "Flip cards to learn science facts. Self-assess your understanding.", icon: <Brain size={120} />, tag: "Science", tagBg: "bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300" },
+    { id: "timeline", title: "Timeline Sort", desc: "Arrange historical events in the correct chronological order.", icon: <Clock size={120} />, tag: "History", tagBg: "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300" },
+    { id: "physicsLab", title: "Physics Lab", desc: "Match physics formulas to their descriptions. Master the laws of physics.", icon: <Zap size={120} />, tag: "Physics", tagBg: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" },
+    { id: "spellingBee", title: "Spelling Bee", desc: "Read the definition and type the correct word. Improve your spelling!", icon: <BookOpen size={120} />, tag: "English", tagBg: "bg-pink-100 text-pink-700 dark:bg-pink-950/40 dark:text-pink-300" },
+    { id: "crossword", title: "Crossword Puzzle", desc: "Fill in the crossword grid using the clues. Test your general knowledge.", icon: <Gamepad size={120} />, tag: "Puzzle", tagBg: "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300" },
+    { id: "wilayaMatch", title: "Wilaya Match", desc: "Match Algerian wilaya names to their numbers. Learn the 58 wilayas!", icon: <Globe size={120} />, tag: "Geography", tagBg: "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300" },
+  ];
 
   return (
     <>
@@ -1887,53 +1975,29 @@ function GamesScreen({
 
       {/* Games Selection List */}
       <div className="flex flex-col gap-3">
-        {/* Game 1: Memory Game */}
-        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-sm relative overflow-hidden flex flex-col gap-4">
-          <div className="absolute top-0 right-0 p-8 text-indigo-200 dark:text-indigo-950/20 translate-x-4 -translate-y-4 select-none">
-            <Brain size={120} />
+        {gameList.map((game) => (
+          <div key={game.id} className="p-4 rounded-3xl bg-surface border border-border-custom shadow-sm relative overflow-hidden flex flex-col gap-4">
+            <div className="absolute top-0 right-0 p-8 text-indigo-200 dark:text-indigo-950/20 translate-x-4 -translate-y-4 select-none pointer-events-none">
+              {game.icon}
+            </div>
+            <div className="z-10 flex flex-col gap-1 max-w-[70%]">
+              <span
+                className={`text-[10px] font-black uppercase tracking-wider py-1 px-2.5 rounded-full w-max ${game.id === "math" ? "" : game.tagBg}`}
+                style={game.id === "math" ? { background: 'var(--accent-yellow)', opacity: 0.6, color: 'var(--text-primary)' } : {}}
+              >
+                {game.tag}
+              </span>
+              <h4 className="font-black text-base text-text-primary mt-1">{game.title}</h4>
+              <p className="text-xs text-text-secondary leading-snug">{game.desc}</p>
+            </div>
+            <button
+              onClick={() => setActiveGame(game.id)}
+              className="w-full bg-primary hover:scale-[1.02] active:scale-[0.98] text-white py-3 rounded-2xl text-xs font-black shadow-xs transition-all mt-2 z-10"
+            >
+              {t("game_start_play")}
+            </button>
           </div>
-          <div className="z-10 flex flex-col gap-1 max-w-[70%]">
-            <span className="bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 text-[10px] font-black uppercase tracking-wider py-1 px-2.5 rounded-full w-max">
-              {t("game_brain_title")}
-            </span>
-            <h4 className="font-black text-base text-text-primary mt-1">{t("mem_title")}</h4>
-            <p className="text-xs text-text-secondary leading-snug">
-              {cycle === "primaire" && "Fun emoji matching to boost focus and memory."}
-              {cycle === "moyen" && "Match math and school symbols to train your cognitive focus."}
-              {cycle === "lycee" && "Advanced science, technology and career symbols challenge."}
-            </p>
-          </div>
-          <button
-            onClick={() => setActiveGame("memory")}
-            className="w-full bg-primary hover:scale-[1.02] active:scale-[0.98] text-white py-3 rounded-2xl text-xs font-black shadow-xs transition-all mt-2 z-10"
-          >
-            {t("game_start_play")}
-          </button>
-        </div>
-
-        {/* Game 2: Math Quiz */}
-        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-sm relative overflow-hidden flex flex-col gap-4">
-          <div className="absolute top-0 right-0 p-8 text-amber-200 dark:text-amber-950/20 translate-x-4 -translate-y-4 select-none">
-            <Trophy size={120} />
-          </div>
-          <div className="z-10 flex flex-col gap-1 max-w-[70%]">
-            <span className="text-[10px] font-black uppercase tracking-wider py-1 px-2.5 rounded-full w-max" style={{ background: 'var(--accent-yellow)', opacity: 0.6, color: 'var(--text-primary)' }}>
-              {t("game_challenges_title")}
-            </span>
-            <h4 className="font-black text-base text-text-primary mt-1">{t("game_math_challenge")}</h4>
-            <p className="text-xs text-text-secondary leading-snug">
-              {cycle === "primaire" && "Test your skills with fun arithmetic and daily word puzzles."}
-              {cycle === "moyen" && "Intermediate algebraic equations and geometry problems."}
-              {cycle === "lycee" && "High-level calculus, trigonometry and advanced logic puzzles."}
-            </p>
-          </div>
-          <button
-            onClick={() => setActiveGame("math")}
-            className="w-full bg-primary hover:scale-[1.02] active:scale-[0.98] text-white py-3 rounded-2xl text-xs font-black shadow-xs transition-all mt-2 z-10"
-          >
-            {t("game_start_play")}
-          </button>
-        </div>
+        ))}
 
         {/* Custom Games (admin-created) */}
         {levelCustomGames.length > 0 && (
@@ -1950,7 +2014,7 @@ function GamesScreen({
                     Admin Created
                   </span>
                 </div>
-                <div className="absolute top-0 right-0 p-8 text-primary/10 translate-x-4 -translate-y-4 select-none">
+                <div className="absolute top-0 right-0 p-8 text-primary/10 translate-x-4 -translate-y-4 select-none pointer-events-none">
                   {game.type === "memory" ? <Brain size={100} /> : <Trophy size={100} />}
                 </div>
                 <div className="z-10 flex flex-col gap-1 max-w-[75%]">
@@ -1972,566 +2036,6 @@ function GamesScreen({
         )}
       </div>
     </>
-  );
-}
-
-/* ==========================================================================
-   GAME: Math Quiz
-   ========================================================================== */
-interface QuizQuestion {
-  question: string;
-  options: string[];
-  correctIndex: number;
-}
-
-function MathQuizGame({
-  t,
-  onExit,
-  addPoints,
-  cycle,
-  appLanguage,
-  customQuestions,
-  customTitle
-}: {
-  t: (k: string, ...a: (string | number)[]) => string;
-  onExit: () => void;
-  addPoints: (pts: number) => void;
-  cycle: AlgerianCycle;
-  appLanguage: string;
-  customQuestions?: QuizQuestion[];
-  customTitle?: string;
-}) {
-  const getQuestionsForLevel = (): QuizQuestion[] => {
-    if (customQuestions && customQuestions.length > 0) {
-      return customQuestions;
-    }
-    if (cycle === "primaire") {
-      if (appLanguage === "ar") {
-        return [
-          { question: "ما هي نتيجة: 8 + 6؟", options: ["12", "14", "15", "16"], correctIndex: 1 },
-          { question: "إذا كان لدى سارة 15 حبة تمر وأكلت 4، فكم حبة بقيت لديها؟", options: ["9", "10", "11", "12"], correctIndex: 2 },
-          { question: "ما هو حاصل ضرب: 9 × 3؟", options: ["24", "27", "28", "30"], correctIndex: 1 }
-        ];
-      } else if (appLanguage === "fr") {
-        return [
-          { question: "Combien font : 8 + 6 ?", options: ["12", "14", "15", "16"], correctIndex: 1 },
-          { question: "Si Sara a 15 dattes et en mange 4, combien lui en reste-t-il ?", options: ["9", "10", "11", "12"], correctIndex: 2 },
-          { question: "Combien font : 9 × 3 ?", options: ["24", "27", "28", "30"], correctIndex: 1 }
-        ];
-      } else if (appLanguage === "kab") {
-        return [
-          { question: "Acḥal i d-yettak: 8 + 6?", options: ["12", "14", "15", "16"], correctIndex: 1 },
-          { question: "Ma yella ɣur Sara 15 n ttejratin tččer 4, acḥal i s-d-yeqqimen?", options: ["9", "10", "11", "12"], correctIndex: 2 },
-          { question: "Acḥal i d-yettak: 9 × 3?", options: ["24", "27", "28", "30"], correctIndex: 1 }
-        ];
-      } else {
-        return [
-          { question: "What is 8 + 6?", options: ["12", "14", "15", "16"], correctIndex: 1 },
-          { question: "If Sara has 15 dates and eats 4, how many dates does she have left?", options: ["9", "10", "11", "12"], correctIndex: 2 },
-          { question: "What is 9 × 3?", options: ["24", "27", "28", "30"], correctIndex: 1 }
-        ];
-      }
-    } else if (cycle === "lycee") {
-      if (appLanguage === "ar") {
-        return [
-          { question: "أوجد مشتق الدالة f(x) = x² + 3x عند x = 2:", options: ["5", "7", "6", "8"], correctIndex: 1 },
-          { question: "ما هي قيمة log2(32)؟", options: ["4", "5", "6", "16"], correctIndex: 1 },
-          { question: "أوجد حلول المعادلة: x² - 5x + 6 = 0:", options: ["x=1, x=6", "x=2, x=3", "x=-2, x=-3", "x=5, x=1"], correctIndex: 1 }
-        ];
-      } else if (appLanguage === "fr") {
-        return [
-          { question: "Trouvez la dérivée de f(x) = x² + 3x pour x = 2 :", options: ["5", "7", "6", "8"], correctIndex: 1 },
-          { question: "Quelle est la valeur de log2(32) ?", options: ["4", "5", "6", "16"], correctIndex: 1 },
-          { question: "Résoudre l'équation : x² - 5x + 6 = 0 :", options: ["x=1, x=6", "x=2, x=3", "x=-2, x=-3", "x=5, x=1"], correctIndex: 1 }
-        ];
-      } else if (appLanguage === "kab") {
-        return [
-          { question: "Af-d derivé n f(x) = x² + 3x deg x = 2 :", options: ["5", "7", "6", "8"], correctIndex: 1 },
-          { question: "Acḥal i d azal n log2(32)?", options: ["4", "5", "6", "16"], correctIndex: 1 },
-          { question: "Fru taseddart: x² - 5x + 6 = 0 :", options: ["x=1, x=6", "x=2, x=3", "x=-2, x=-3", "x=5, x=1"], correctIndex: 1 }
-        ];
-      } else {
-        return [
-          { question: "Find the derivative of f(x) = x² + 3x at x = 2:", options: ["5", "7", "6", "8"], correctIndex: 1 },
-          { question: "What is the value of log2(32)?", options: ["4", "5", "6", "16"], correctIndex: 1 },
-          { question: "Solve the equation: x² - 5x + 6 = 0:", options: ["x=1, x=6", "x=2, x=3", "x=-2, x=-3", "x=5, x=1"], correctIndex: 1 }
-        ];
-      }
-    } else {
-      if (appLanguage === "ar") {
-        return [
-          { question: "حل المعادلة:\n2x + 5 = 15", options: ["3", "5", "8", "10"], correctIndex: 1 },
-          { question: "ما هو مجموع قياسات زوايا المثلث؟", options: ["90°", "180°", "270°", "360°"], correctIndex: 1 },
-          { question: "ما هي نتيجة: 3/4 + 1/2؟", options: ["4/6", "5/4", "3/8", "1"], correctIndex: 1 }
-        ];
-      } else if (appLanguage === "fr") {
-        return [
-          { question: "Résoudre l'équation :\n2x + 5 = 15", options: ["3", "5", "8", "10"], correctIndex: 1 },
-          { question: "Quelle est la somme des angles d'un triangle ?", options: ["90°", "180°", "270°", "360°"], correctIndex: 1 },
-          { question: "Quelle est la valeur de : 3/4 + 1/2 ?", options: ["4/6", "5/4", "3/8", "1"], correctIndex: 1 }
-        ];
-      } else if (appLanguage === "kab") {
-        return [
-          { question: "Fru taseddart:\n2x + 5 = 15", options: ["3", "5", "8", "10"], correctIndex: 1 },
-          { question: "Acḥal i d timrirt n tɣemrin n lmutellaṯ?", options: ["90°", "180°", "270°", "360°"], correctIndex: 1 },
-          { question: "Acḥal i d-yettak: 3/4 + 1/2?", options: ["4/6", "5/4", "3/8", "1"], correctIndex: 1 }
-        ];
-      } else {
-        return [
-          { question: "Solve the equation:\n2x + 5 = 15", options: ["3", "5", "8", "10"], correctIndex: 1 },
-          { question: "What is the sum of the interior angles of a triangle?", options: ["90°", "180°", "270°", "360°"], correctIndex: 1 },
-          { question: "What is the value of: 3/4 + 1/2?", options: ["4/6", "5/4", "3/8", "1"], correctIndex: 1 }
-        ];
-      }
-    }
-  };
-
-  const quizQuestions = getQuestionsForLevel();
-
-  const [currentIdx, setCurrentIdx] = useState<number>(0);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [correctAnswers, setCorrectAnswers] = useState<number>(0);
-  const [isFinished, setIsFinished] = useState<boolean>(false);
-  const [timeLeft, setTimeLeft] = useState<number>(15);
-
-  const activeQuestion = quizQuestions[currentIdx];
-
-  // Question Timer Loop
-  useEffect(() => {
-    if (isFinished || selectedIdx !== null) return;
-
-    if (timeLeft <= 0) {
-      handleOptionSelect(-1); // Count as timeout (wrong)
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setTimeLeft(timeLeft - 1);
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [timeLeft, currentIdx, selectedIdx, isFinished]);
-
-  const handleOptionSelect = (index: number) => {
-    setSelectedIdx(index);
-    if (index === activeQuestion.correctIndex) {
-      setCorrectAnswers((prev) => prev + 1);
-    }
-  };
-
-  const handleNext = () => {
-    setSelectedIdx(null);
-    setTimeLeft(15);
-    if (currentIdx + 1 < quizQuestions.length) {
-      setCurrentIdx((prev) => prev + 1);
-    } else {
-      setIsFinished(true);
-      // Award 50 points per correct answer
-      addPoints(correctAnswers * 50);
-    }
-  };
-
-  const handleRestart = () => {
-    setCurrentIdx(0);
-    setSelectedIdx(null);
-    setCorrectAnswers(0);
-    setIsFinished(false);
-    setTimeLeft(15);
-  };
-
-  if (isFinished) {
-    const totalPointsEarned = correctAnswers * 50;
-    return (
-      <div className="p-5 rounded-3xl bg-surface border border-border-custom shadow-md flex flex-col items-center gap-5 text-center">
-        <Trophy style={{ color: 'var(--accent-yellow)' }} className="fill-current animate-bounce" size={60} />
-        <div>
-          <h4 className="font-black text-xl text-text-primary">{t("quiz_congrats")}</h4>
-          <p className="text-xs text-text-secondary mt-1">{t("quiz_finished_desc")}</p>
-        </div>
-
-        <div className="w-full bg-border-custom/20 rounded-2xl p-4 flex flex-col gap-2">
-          <div className="flex justify-between text-xs font-bold text-text-primary">
-            <span>{t("quiz_correct_count", correctAnswers, quizQuestions.length)}</span>
-            <span>{Math.round((correctAnswers / quizQuestions.length) * 100)}%</span>
-          </div>
-          <div className="flex justify-between text-xs font-black" style={{ color: 'var(--accent-orange)' }}>
-            <span>Points Earned</span>
-            <span>+{totalPointsEarned} Pts</span>
-          </div>
-        </div>
-
-        <div className="flex gap-2 w-full">
-          <button
-            onClick={handleRestart}
-            className="flex-1 bg-border-custom hover:bg-border-custom/80 text-text-primary py-3 rounded-xl text-xs font-bold transition-all"
-          >
-            Play Again
-          </button>
-          <button
-            onClick={onExit}
-            className="flex-1 bg-primary hover:bg-primary/95 text-white py-3 rounded-xl text-xs font-black transition-all"
-          >
-            {t("mem_finish_game")}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-md flex flex-col gap-4">
-      {/* Header */}
-      <div className="flex justify-between items-center pb-2 border-b border-border-custom">
-        <button onClick={onExit} className="p-1 rounded-lg hover:bg-border-custom/50 text-text-secondary flex items-center gap-1 text-xs font-black">
-          <ArrowLeft size={16} />
-          {t("mem_back")}
-        </button>
-        <span className="text-xs font-black text-text-primary uppercase tracking-wide">
-          {customTitle || t("game_math_challenge")}
-        </span>
-        <span className="text-xs font-black text-primary">
-          {t("quiz_progress", currentIdx + 1, quizQuestions.length)}
-        </span>
-      </div>
-
-      {/* Timer Bar */}
-      <div className="flex flex-col gap-1">
-        <div className="flex justify-between text-[10px] font-black text-text-secondary">
-          <span className="flex items-center gap-1">
-            <Clock size={10} /> Timer
-          </span>
-          <span className={timeLeft <= 5 ? "text-red-500 font-bold" : ""}>{timeLeft}s</span>
-        </div>
-        <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-1000 ${
-              timeLeft <= 5 ? "bg-red-500" : "bg-primary"
-            }`}
-            style={{ width: `${(timeLeft / 15) * 100}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Question */}
-      <div className="p-4 rounded-2xl bg-border-custom/20 border border-border-custom/30 text-center py-6">
-        <p className="text-sm font-black text-text-primary whitespace-pre-line leading-relaxed">
-          {activeQuestion.question}
-        </p>
-      </div>
-
-      {/* Options */}
-      <div className="flex flex-col gap-2">
-        {activeQuestion.options.map((opt, idx) => {
-          const isSelected = selectedIdx === idx;
-          const isCorrect = idx === activeQuestion.correctIndex;
-          const showAnswer = selectedIdx !== null;
-
-          let btnClass = "border-border-custom bg-surface text-text-primary hover:bg-border-custom/20";
-          if (showAnswer) {
-            if (isCorrect) {
-              btnClass = "border-green-500 bg-green-500/10 text-green-700 dark:text-green-400 font-black";
-            } else if (isSelected) {
-              btnClass = "border-red-500 bg-red-500/10 text-red-700 dark:text-red-400 font-black";
-            } else {
-              btnClass = "border-border-custom opacity-50 bg-surface text-text-secondary";
-            }
-          }
-
-          return (
-            <button
-              key={idx}
-              onClick={() => handleOptionSelect(idx)}
-              disabled={showAnswer}
-              className={`w-full py-3.5 px-4 rounded-xl border text-xs font-bold text-left transition-all flex items-center justify-between ${btnClass}`}
-            >
-              <span>{opt}</span>
-              {showAnswer && isCorrect && <Check size={14} className="text-green-500" />}
-              {showAnswer && isSelected && !isCorrect && <X size={14} className="text-red-500" />}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Navigation action */}
-      {selectedIdx !== null && (
-        <button
-          onClick={handleNext}
-          className="w-full bg-primary text-white py-3.5 rounded-xl text-xs font-black shadow-xs hover:bg-primary/95 transition-all mt-2"
-        >
-          {currentIdx + 1 === quizQuestions.length ? t("quiz_view_result") : t("quiz_next_question")}
-        </button>
-      )}
-    </div>
-  );
-}
-
-/* ==========================================================================
-   GAME: Memory Match Game
-   ========================================================================== */
-interface MemoryCard {
-  id: number;
-  emoji: string;
-  isFlipped: boolean;
-  isMatched: boolean;
-}
-
-function MemoryMatchingGame({
-  t,
-  onExit,
-  addPoints,
-  cycle,
-  customEmojis,
-  customTitle
-}: {
-  t: (k: string, ...a: (string | number)[]) => string;
-  onExit: () => void;
-  addPoints: (pts: number) => void;
-  cycle: AlgerianCycle;
-  customEmojis?: string[];
-  customTitle?: string;
-}) {
-  const getGameConfig = () => {
-    if (customEmojis && customEmojis.length > 0) {
-      const len = customEmojis.length;
-      let gridCols = "grid-cols-4";
-      if (len <= 6) gridCols = "grid-cols-3";
-      else if (len <= 8) gridCols = "grid-cols-4";
-      else gridCols = "grid-cols-5";
-      return {
-        emojis: customEmojis,
-        gridCols,
-        timeLeft: 45,
-        pointsPerWin: len * 20
-      };
-    }
-    switch (cycle) {
-      case "primaire":
-        return {
-          emojis: ["🐶", "🐱", "🦊", "🐻", "🦁", "🐯"],
-          gridCols: "grid-cols-3",
-          timeLeft: 50,
-          pointsPerWin: 120
-        };
-      case "lycee":
-        return {
-          emojis: ["🧬", "🚀", "💻", "📊", "⚖️", "🏛️", "🌍", "🛰️", "⚙️", "🧪"],
-          gridCols: "grid-cols-5",
-          timeLeft: 40,
-          pointsPerWin: 200
-        };
-      case "moyen":
-      default:
-        return {
-          emojis: ["📐", "🧪", "🔬", "💻", "📚", "🎨", "⚽", "🧠"],
-          gridCols: "grid-cols-4",
-          timeLeft: 45,
-          pointsPerWin: 150
-        };
-    }
-  };
-
-  const config = getGameConfig();
-
-  const [cards, setCards] = useState<MemoryCard[]>([]);
-  const [selectedCards, setSelectedCards] = useState<number[]>([]);
-  const [moves, setMoves] = useState<number>(0);
-  const [timeLeft, setTimeLeft] = useState<number>(config.timeLeft);
-  const [gameOver, setGameOver] = useState<"win" | "lose" | null>(null);
-
-  // Initialize deck
-  const initGame = () => {
-    const deck = [...config.emojis, ...config.emojis]
-      .map((emoji, index) => ({
-        id: index,
-        emoji,
-        isFlipped: false,
-        isMatched: false
-      }))
-      .sort(() => Math.random() - 0.5);
-    setCards(deck);
-    setSelectedCards([]);
-    setMoves(0);
-    setTimeLeft(config.timeLeft);
-    setGameOver(null);
-  };
-
-  useEffect(() => {
-    initGame();
-  }, [cycle]);
-
-  // Timer loop
-  useEffect(() => {
-    if (gameOver) return;
-
-    if (timeLeft <= 0) {
-      setGameOver("lose");
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setTimeLeft(timeLeft - 1);
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [timeLeft, gameOver]);
-
-  // Ref to hold points to award
-  const pendingPoints = useRef<number | null>(null);
-
-  // Safely call addPoints outside of the render/setState cycle
-  useEffect(() => {
-    if (pendingPoints.current !== null) {
-      addPoints(pendingPoints.current);
-      pendingPoints.current = null;
-    }
-  }, [gameOver]);
-
-  // Card select handling
-  const handleCardClick = (id: number) => {
-    const card = cards.find((c) => c.id === id);
-    if (!card || card.isFlipped || card.isMatched || selectedCards.length >= 2) return;
-
-    // Flip card
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, isFlipped: true } : c)));
-    const nextSelected = [...selectedCards, id];
-    setSelectedCards(nextSelected);
-
-    if (nextSelected.length === 2) {
-      setMoves((m) => m + 1);
-      const [firstId, secondId] = nextSelected;
-      const firstCard = cards.find((c) => c.id === firstId);
-      const secondCard = cards.find((c) => c.id === secondId);
-
-      if (firstCard && secondCard && firstCard.emoji === secondCard.emoji) {
-        // Matched!
-        setTimeout(() => {
-          setCards((prev) => {
-            const next = prev.map((c) =>
-              c.id === firstId || c.id === secondId
-                ? { ...c, isMatched: true, isFlipped: true }
-                : c
-            );
-            // Check win condition purely on data
-            const allMatched = next.every((c) => c.isMatched);
-            if (allMatched) {
-              pendingPoints.current = config.pointsPerWin + timeLeft;
-              setGameOver("win");
-            }
-            return next;
-          });
-          setSelectedCards([]);
-        }, 600);
-      } else {
-        // Mismatch - flip back
-        setTimeout(() => {
-          setCards((prev) =>
-            prev.map((c) =>
-              c.id === firstId || c.id === secondId ? { ...c, isFlipped: false } : c
-            )
-          );
-          setSelectedCards([]);
-        }, 1000);
-      }
-    }
-  };
-
-  if (gameOver) {
-    const isWin = gameOver === "win";
-    return (
-      <div className="p-5 rounded-3xl bg-surface border border-border-custom shadow-md flex flex-col items-center gap-5 text-center">
-        {isWin ? (
-          <Trophy style={{ color: 'var(--accent-yellow)' }} className="fill-current animate-bounce" size={60} />
-        ) : (
-          <AlertCircle className="text-red-500 animate-pulse" size={60} />
-        )}
-        <div>
-          <h4 className="font-black text-xl text-text-primary">
-            {isWin ? t("mem_victory") : t("mem_timeout")}
-          </h4>
-          <p className="text-xs text-text-secondary mt-1">
-            {isWin ? t("mem_victory_desc") : t("mem_timeout_desc")}
-          </p>
-        </div>
-
-        <div className="w-full bg-border-custom/20 rounded-2xl p-4 flex flex-col gap-2 text-xs font-bold text-text-primary">
-          <div className="flex justify-between">
-            <span>Moves Made</span>
-            <span>{moves}</span>
-          </div>
-          {isWin && (
-            <div className="flex justify-between font-black" style={{ color: 'var(--accent-orange)' }}>
-              <span>Points Awarded</span>
-              <span>+{config.pointsPerWin + timeLeft} Pts</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-2 w-full">
-          <button
-            onClick={initGame}
-            className="flex-1 bg-border-custom hover:bg-border-custom/80 text-text-primary py-3 rounded-xl text-xs font-bold transition-all"
-          >
-            Play Again
-          </button>
-          <button
-            onClick={onExit}
-            className="flex-1 bg-primary hover:bg-primary/95 text-white py-3 rounded-xl text-xs font-black transition-all"
-          >
-            {t("mem_finish_game")}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-md flex flex-col gap-4">
-      {/* Header */}
-      <div className="flex flex-col gap-1 pb-2 border-b border-border-custom">
-        <div className="flex justify-between items-center">
-          <button onClick={onExit} className="p-1 rounded-lg hover:bg-border-custom/50 text-text-secondary flex items-center gap-1 text-xs font-black">
-            <ArrowLeft size={16} />
-            {t("mem_back")}
-          </button>
-          <span className="text-xs font-black text-text-primary uppercase tracking-wide">
-            {customTitle || t("mem_title")}
-          </span>
-          <span className={`text-xs font-black ${timeLeft <= 10 ? "text-red-500 animate-pulse" : "text-primary"}`}>
-            {timeLeft}s
-          </span>
-        </div>
-        <div className="text-[10px] text-text-secondary text-center">Moves: {moves}</div>
-      </div>
-
-      {/* Card Grid */}
-      <div className={`grid ${config.gridCols} gap-3 my-2 justify-center`}>
-        {cards.map((card) => {
-          const isFlipped = card.isFlipped || card.isMatched;
-          return (
-            <div
-              key={card.id}
-              onClick={() => handleCardClick(card.id)}
-              className="w-full aspect-square relative perspective-1000 cursor-pointer"
-            >
-              <div
-                className={`w-full h-full rounded-2xl transition-all duration-500 transform-style-3d ${
-                  isFlipped ? "rotate-y-180" : ""
-                }`}
-              >
-                {/* Back side of Card (Hidden) */}
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary to-indigo-600 border border-primary/20 flex items-center justify-center backface-hidden shadow-xs">
-                  <Sparkles className="text-white/40" size={24} />
-                </div>
-                {/* Front side of Card (Revealed Emoji) */}
-                <div className="absolute inset-0 rounded-2xl bg-border-custom/30 dark:bg-zinc-800 border-2 border-primary/30 flex items-center justify-center text-3xl backface-hidden rotate-y-180 shadow-xs">
-                  {card.emoji}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
@@ -2731,7 +2235,7 @@ function PsychologicalScreen({
       }
     }, 1000);
 
-    return () => clearTimeout(interval);
+    return () => clearInterval(interval);
   }, [breathingActive]);
 
   const handleStartBreathing = () => {
@@ -3491,14 +2995,6 @@ function GoalsScreen({
 /* ==========================================================================
    SCREEN: Parents Portal
    ========================================================================== */
-interface ParentAlert {
-  id: string;
-  type: "math" | "goal_completed" | "challenge" | "fatigue";
-  childName: string;
-  timeValue: number;
-  isDays: boolean;
-}
-
 function ParentScreen({
   t,
   parentAuthenticated,
