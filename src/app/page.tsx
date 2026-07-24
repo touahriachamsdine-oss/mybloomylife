@@ -2,6 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import { useBloom, AppLanguage, Goal, AlgerianLevel, AlgerianCycle, SUBJECTS_BY_CYCLE, ParentAlert } from "@/context/BloomContext";
+import { useTeacherData } from "@/context/teacher";
+import TeacherDashboard from "@/components/teacher/TeacherDashboard";
+import AttendanceTracker from "@/components/teacher/AttendanceTracker";
+import BehaviorNotesView from "@/components/teacher/BehaviorNotes";
+import TeacherSchedule from "@/components/teacher/TeacherSchedule";
+import ParentMessagesView from "@/components/teacher/ParentMessages";
 import {
   MathQuizGame,
   MemoryMatchingGame,
@@ -55,7 +61,10 @@ import {
   BookOpen,
   Smile,
   Star,
-  Zap
+  Zap,
+  Users,
+  MessageSquare,
+  BarChart3
 } from "lucide-react";
 
 export default function App() {
@@ -97,6 +106,10 @@ export default function App() {
   // Intercept: show level picker for students who haven't chosen a level yet
   const studentName = currentUser?.name || "Sara";
   const needsLevelPick = userRole === "student" && !studentLevels[studentName];
+
+  // Teacher sub-screen navigation
+  const [teacherView, setTeacherView] = useState("dashboard");
+  const teacherData = useTeacherData();
 
   // local notification state for parents messages
   const [activeSupportMessage, setActiveSupportMessage] = useState<string | null>(null);
@@ -331,9 +344,14 @@ export default function App() {
                           { id: "parent", label: t("nav_parent"), icon: <Shield size={18} /> }
                         ];
                       } else if (userRole === "teacher") {
-                        items = [
-                          { id: "academic", label: t("nav_academic"), icon: <TrendingUp size={18} /> }
-                        ];
+                        items = ([
+                          { id: "teacher", label: t("teacher_dashboard"), icon: <BarChart3 size={18} />, meta: "dashboard" },
+                          { id: "teacher", label: t("teacher_attendance"), icon: <Users size={18} />, meta: "attendance" },
+                          { id: "teacher", label: t("teacher_behavior"), icon: <MessageSquare size={18} />, meta: "behavior" },
+                          { id: "teacher", label: t("teacher_schedule"), icon: <Clock size={18} />, meta: "schedule" },
+                          { id: "teacher", label: t("teacher_messages"), icon: <BookOpen size={18} />, meta: "messages" },
+                          { id: "academic", label: t("nav_academic"), icon: <TrendingUp size={18} /> },
+                        ] as any);
                       } else if (userRole === "psychologist") {
                         items = [
                           { id: "psychological", label: t("nav_psychological"), icon: <Heart size={18} /> }
@@ -344,12 +362,13 @@ export default function App() {
                         ];
                       }
                       return items.map((item) => {
-                        const isActive = activeScreen === item.id;
+                        const isActive = activeScreen === item.id && (!(item as any).meta || (item as any).meta === teacherView);
                         return (
                           <button
                             key={item.id}
                             onClick={() => {
                               setActiveScreen(item.id);
+                              if ((item as any).meta) setTeacherView((item as any).meta);
                               setDrawerOpen(false);
                             }}
                             className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all ${
@@ -459,6 +478,19 @@ export default function App() {
               {activeScreen === "home" && <HomeScreen t={t} goals={goals} userPoints={userPoints} incrementGoalProgress={incrementGoalProgress} addPoints={addPoints} setCurrentMood={setCurrentMood} currentMood={currentMood} setActiveScreen={setActiveScreen} />}
               {activeScreen === "admin" && <AdminDashboardScreen t={t} />}
               {activeScreen === "academic" && <AcademicScreen t={t} />}
+              {activeScreen === "teacher" && (() => {
+                const subProps = { t, teacher: teacherData, onNavigate: (to: string) => {
+                  if (to === "back") setTeacherView("dashboard");
+                  else setTeacherView(to);
+                }};
+                switch (teacherView) {
+                  case "attendance": return <AttendanceTracker {...subProps} />;
+                  case "behavior": return <BehaviorNotesView {...subProps} />;
+                  case "schedule": return <TeacherSchedule {...subProps} />;
+                  case "messages": return <ParentMessagesView {...subProps} />;
+                  default: return <TeacherDashboard {...subProps} />;
+                }
+              })()}
               {activeScreen === "games" && <GamesScreen t={t} addPoints={addPoints} userPoints={userPoints} />}
               {activeScreen === "psychological" && <PsychologicalScreen t={t} currentMood={currentMood} setCurrentMood={setCurrentMood} addPoints={addPoints} />}
               {activeScreen === "goals" && <GoalsScreen t={t} goals={goals} incrementGoalProgress={incrementGoalProgress} deleteGoal={deleteGoal} addGoal={addGoal} addPoints={addPoints} />}
@@ -2332,6 +2364,54 @@ function PsychologicalScreen({
             })}
           </div>
         </div>
+
+        {/* Mood Trends */}
+        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+          <h3 className="font-black text-sm text-text-primary">{t("psy_mood_trend")}</h3>
+          <div className="flex flex-col gap-2">
+            {students.map(sName => {
+              const studentMoods = moodLogs.filter(m => m.student === sName);
+              if (studentMoods.length === 0) return null;
+              const counts: Record<string, number> = {};
+              studentMoods.forEach(m => { counts[m.mood] = (counts[m.mood] || 0) + 1; });
+              const total = studentMoods.length;
+              return (
+                <div key={sName} className="flex flex-col gap-1 p-2 rounded-xl bg-border-custom/10">
+                  <span className="text-xs font-black text-text-primary">{sName}</span>
+                  <div className="flex flex-wrap gap-1">
+                    {Object.entries(counts).map(([mood, count]) => (
+                      <div key={mood} className="flex items-center gap-1 text-[10px] bg-surface rounded-lg px-2 py-1 border border-border-custom/50">
+                        <span>{moodEmojis[mood] || "😊"}</span>
+                        <span className="font-bold text-text-primary">{count}</span>
+                        <span className="text-text-secondary">({Math.round(count / total * 100)}%)</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Send Note to Student */}
+        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+          <h3 className="font-black text-sm text-text-primary">{t("psy_reply")}</h3>
+          <div className="flex gap-2 flex-wrap">
+            {students.map(sName => (
+              <button key={sName} onClick={() => {
+                const note = prompt(t("psy_reply") + " " + sName + ":");
+                if (note) {
+                  const updated = { ...guidanceNotes, [sName]: [...(guidanceNotes[sName] || []), note] };
+                  setGuidanceNotes(updated);
+                  localStorage.setItem("bloom_guidance_notes", JSON.stringify(updated));
+                }
+              }}
+                className="px-3 py-1.5 rounded-xl text-xs font-black border transition-all bg-primary text-white border-primary">
+                {t(`parent_child_${sName.toLowerCase()}`).startsWith("parent_child_") ? sName : t(`parent_child_${sName.toLowerCase()}`)}
+              </button>
+            ))}
+          </div>
+        </div>
       </>
     );
   }
@@ -3008,6 +3088,8 @@ function ParentScreen({
   parentAlerts: ParentAlert[];
   sendSupportMessage: (to: string, msg: string) => void;
 }) {
+  const teacherData = useTeacherData();
+  const [parentView, setParentView] = useState<"overview" | "attendance" | "behavior">("overview");
   const { studentGrades, linkChildAccount, linkedChildren, familyLinkCodes, studentLevels } = useBloom();
   const [pin, setPin] = useState<string>("");
   const [pinError, setPinError] = useState<boolean>(false);
@@ -3277,7 +3359,48 @@ function ParentScreen({
         </div>
       )}
 
-      {/* Selected Child Reports Summary Card */}
+      {/* Sub-tab navigation */}
+      <div className="flex rounded-xl overflow-hidden border border-border-custom">
+        {(["overview", "attendance", "behavior"] as const).map(v => (
+          <button key={v} onClick={() => setParentView(v)}
+            className={`flex-1 py-2 text-[10px] font-bold transition-all ${parentView === v ? "bg-primary text-white" : "bg-surface text-text-primary"}`}>
+            {v === "overview" ? t("parent_overview") : v === "attendance" ? t("parent_attendance") : t("parent_behavior")}
+          </button>
+        ))}
+      </div>
+
+      {parentView === "attendance" ? (
+        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
+          <h3 className="font-black text-sm text-text-primary">{t("parent_attendance")}</h3>
+          {(() => {
+            const records = teacherData.attendance.filter(r => r.studentName === selectedChild);
+            if (records.length === 0) return <p className="text-xs text-text-secondary">{t("parent_no_data")}</p>;
+            return records.slice(-20).reverse().map(r => (
+              <div key={`${r.date}-${r.status}`} className="flex items-center justify-between text-xs py-1">
+                <span className="font-bold text-text-primary">{r.date}</span>
+                <span className={`font-black ${r.status === "present" ? "text-green-600" : r.status === "absent" ? "text-red-500" : r.status === "excused" ? "text-amber-600" : "text-blue-600"}`}>{t(r.status)}</span>
+              </div>
+            ));
+          })()}
+        </div>
+      ) : parentView === "behavior" ? (
+        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
+          <h3 className="font-black text-sm text-text-primary">{t("parent_behavior")}</h3>
+          {(() => {
+            const notes = teacherData.behaviorNotes.filter(n => n.studentName === selectedChild);
+            if (notes.length === 0) return <p className="text-xs text-text-secondary">{t("parent_no_data")}</p>;
+            return notes.map(n => (
+              <div key={n.id} className={`p-2 rounded-xl border text-xs ${n.type === "positive" ? "bg-green-500/5 border-green-500/20" : n.type === "negative" ? "bg-red-500/5 border-red-500/20" : "bg-blue-500/5 border-blue-500/20"}`}>
+                <div className="flex items-center gap-1.5">
+                  <span className={`font-black ${n.type === "positive" ? "text-green-600" : n.type === "negative" ? "text-red-500" : "text-blue-600"}`}>{t(n.type)}</span>
+                  <span className="text-text-secondary text-[9px]">{n.date}</span>
+                </div>
+                <p className="text-text-primary font-medium mt-0.5">{n.note}</p>
+              </div>
+            ));
+          })()}
+        </div>
+      ) : (
       <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-4">
         {/* Child level metadata */}
         <div className="flex justify-between items-center border-b border-border-custom pb-3">
@@ -3356,6 +3479,7 @@ function ParentScreen({
           </div>
         </div>
       </div>
+      )}
 
       {/* Parental Interactive Messages panel */}
       <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
@@ -3441,7 +3565,7 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
   } = useBloom();
 
   // Admin sub-tab state
-  const [activeTab, setActiveTab] = useState<"levels" | "games" | "students">("students");
+  const [activeTab, setActiveTab] = useState<"levels" | "games" | "students" | "users">("students");
 
   // ── Levels form state ──
   const [levelCycle, setLevelCycle] = useState<AlgerianCycle>("moyen");
@@ -3557,6 +3681,9 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
     setTimeout(() => setGameMsg(null), 4000);
   };
 
+  // ── User management state ──
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
   // ── Grade update handler ──
   const handleGradeUpdate = (subject: string) => {
     const val = parseFloat(editGrade[subject] || "");
@@ -3571,7 +3698,7 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
   const studentLevel = studentLevels[selectedStudent];
   const studentMoods = moodLogs.filter(l => l.student === selectedStudent);
 
-  const tabBtn = (id: "levels" | "games" | "students", label: string, icon: React.ReactNode) => (
+  const tabBtn = (id: "levels" | "games" | "students" | "users", label: string, icon: React.ReactNode) => (
     <button
       key={id}
       onClick={() => setActiveTab(id)}
@@ -3607,6 +3734,7 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
         {tabBtn("students", "Students", <Activity size={14} />)}
         {tabBtn("games", "Games", <Gamepad size={14} />)}
         {tabBtn("levels", "Levels", <TrendingUp size={14} />)}
+        {tabBtn("users", "Users", <Users size={14} />)}
       </div>
 
       {/* ── Tab: Students ── */}
@@ -3979,6 +4107,48 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
             </button>
           </div>
         </>
+      )}
+
+      {/* ── Tab: Users ── */}
+      {activeTab === "users" && (
+        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Users size={18} className="text-primary" />
+            <h3 className="font-black text-sm text-text-primary">{t("admin_users")}</h3>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {registeredUsers.map(u => (
+              <div key={u.username} className="flex items-center justify-between p-2.5 rounded-xl bg-border-custom/10 border border-border-custom/30">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-xs">
+                    {u.name.charAt(0)}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-text-primary">{u.name}</span>
+                    <span className="text-[9px] text-text-secondary">@{u.username} · {t("role_" + u.role)}</span>
+                  </div>
+                </div>
+                {u.username !== "admin" && (
+                  <div className="flex items-center gap-2">
+                    {deleteConfirm === u.username ? (
+                      <>
+                        <button onClick={() => {
+                          const updated = registeredUsers.filter(r => r.username !== u.username);
+                          localStorage.setItem("bloom_registered_users", JSON.stringify(updated));
+                          window.location.reload();
+                        }} className="text-[9px] font-black text-red-500 bg-red-500/10 px-2 py-1 rounded-lg">{t("admin_confirm_delete")}</button>
+                        <button onClick={() => setDeleteConfirm(null)} className="text-[9px] font-bold text-text-secondary bg-border-custom/50 px-2 py-1 rounded-lg">{t("back")}</button>
+                      </>
+                    ) : (
+                      <button onClick={() => setDeleteConfirm(u.username)}
+                        className="text-[9px] font-bold text-red-400 hover:text-red-600 bg-red-500/5 px-2 py-1 rounded-lg">{t("admin_delete_user")}</button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </>
   );
