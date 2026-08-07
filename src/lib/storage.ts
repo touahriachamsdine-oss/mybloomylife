@@ -43,7 +43,7 @@ export const BLOOM_KEYS = {
   storageVersion: "bloom_storage_version",
 } as const;
 
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 
 export function storageAvailable(): boolean {
   try {
@@ -108,6 +108,24 @@ export function runStorageMigrations(): void {
   if (!Number.isFinite(version) || version >= STORAGE_VERSION) return;
 
   // v0 -> v1: no reshaping required yet.
+
+  // v1 -> v2: clear stale sessions. The old sync layer let the remote store
+  // overwrite the per-device session (bloom_user_role / bloom_current_user),
+  // so devices could boot into another user's session. Sign everyone out once
+  // so each user logs in again on their own account.
+  if (version < 2) {
+    bloomRemove(BLOOM_KEYS.userRole);
+    bloomRemove(BLOOM_KEYS.currentUser);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(BLOOM_KEYS.userRole);
+        localStorage.removeItem(BLOOM_KEYS.currentUser);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   bloomSetRaw(BLOOM_KEYS.storageVersion, String(STORAGE_VERSION));
 }
 
