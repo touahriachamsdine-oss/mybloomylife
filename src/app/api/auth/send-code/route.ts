@@ -32,11 +32,11 @@ export async function POST(request: NextRequest) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: process.env.RESEND_FROM || "MyBloom Life <onboarding@resend.dev>",
+          from: process.env.RESEND_FROM || "My Bloomy Life <onboarding@resend.dev>",
           to: [email],
-          subject: "Your MyBloom Life verification code",
+          subject: "Your My Bloomy Life verification code",
           text: `Your verification code is: ${code}. It expires in 10 minutes.`,
-          html: `<p>Your MyBloom Life verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>It expires in 10 minutes.</p>`,
+          html: `<p>Your My Bloomy Life verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>It expires in 10 minutes.</p>`,
         }),
       });
       if (!res.ok) {
@@ -50,6 +50,6 @@ export async function POST(request: NextRequest) {
 
   // Dev mode: no RESEND_API_KEY configured. Log the code so the flow can be
   // tested locally, and return it so the UI can show a demo hint.
-  console.log(`[MyBloom Life] Verification code for ${email} (${purpose}): ${code}`);
+  console.log(`[My Bloomy Life] Verification code for ${email} (${purpose}): ${code}`);
   return Response.json({ ok: true, devCode: code });
 }

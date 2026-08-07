@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MyBloom Life",
+  title: "My Bloomy Life",
   description: "A responsive, beautiful dashboard and games platform for growth and learning",
 };
 
