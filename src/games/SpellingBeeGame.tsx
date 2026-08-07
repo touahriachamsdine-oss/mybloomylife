@@ -168,7 +168,7 @@ export default function SpellingBeeGame({
         <Trophy style={{ color: "var(--accent-yellow)" }} className="fill-current animate-bounce" size={60} />
         <div>
           <h4 className="font-black text-xl text-text-primary">{t("spelling_congrats") || "Spelling Bee Complete!"}</h4>
-          <p className="text-xs text-text-secondary mt-1">Great vocabulary skills! Keep it up.</p>
+          <p className="text-xs text-text-secondary mt-1">{t("spelling_congrats_desc")}</p>
         </div>
 
         <div className="w-full bg-border-custom/20 rounded-2xl p-4 flex flex-col gap-2 text-xs font-bold text-text-primary">
@@ -177,7 +177,7 @@ export default function SpellingBeeGame({
             <span className="font-black" style={{ color: "var(--accent-orange)" }}>{score} / {words.length * 20}</span>
           </div>
           <div className="flex justify-between font-black" style={{ color: "var(--accent-yellow)" }}>
-            <span>Points Earned</span>
+            <span>{t("spelling_points_earned")}</span>
             <span>+{pointsEarned} Pts</span>
           </div>
         </div>
@@ -219,7 +219,7 @@ export default function SpellingBeeGame({
       {/* Progress Bar */}
       <div className="flex flex-col gap-1">
         <div className="flex justify-between text-[10px] font-black text-text-secondary">
-          <span className="flex items-center gap-1"><BookOpen size={10} /> Word {currentIdx + 1} of {words.length}</span>
+          <span className="flex items-center gap-1"><BookOpen size={10} /> {t("spelling_word_progress", currentIdx + 1, words.length)}</span>
           <span>{Math.round(((currentIdx + 1) / words.length) * 100)}%</span>
         </div>
         <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">

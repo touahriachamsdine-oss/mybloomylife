@@ -148,11 +148,11 @@ export default function CrosswordGame({
         <Trophy style={{ color: "var(--accent-yellow)" }} className="fill-current animate-bounce" size={60} />
         <div>
           <h4 className="font-black text-xl text-text-primary">{t("quiz_congrats")}</h4>
-          <p className="text-xs text-text-secondary mt-1">All words completed correctly!</p>
+          <p className="text-xs text-text-secondary mt-1">{t("cross_all_words_desc")}</p>
         </div>
         <div className="w-full bg-border-custom/20 rounded-2xl p-4 flex flex-col gap-2 text-xs font-bold text-text-primary">
           <div className="flex justify-between font-black" style={{ color: "var(--accent-orange)" }}>
-            <span>Points Earned</span>
+            <span>{t("cross_points_earned")}</span>
             <span>+{getPointsForCycle()} Pts</span>
           </div>
         </div>
@@ -168,7 +168,7 @@ export default function CrosswordGame({
             }}
             className="flex-1 bg-border-custom hover:bg-border-custom/80 text-text-primary py-3 rounded-xl text-xs font-bold transition-all"
           >
-            Play Again
+            {t("cross_play_again")}
           </button>
           <button
             onClick={onExit}
@@ -192,7 +192,7 @@ export default function CrosswordGame({
           {t("mem_back")}
         </button>
         <span className="text-xs font-black text-text-primary uppercase tracking-wide">
-          Crossword
+          {t("cross_title")}
         </span>
         <span className="text-xs font-black text-primary">
           {cycle}
@@ -270,7 +270,7 @@ export default function CrosswordGame({
       </div>
 
       <div className="flex flex-col gap-2 bg-border-custom/10 rounded-2xl p-3 border border-border-custom/30">
-        <p className="text-[10px] font-black text-text-secondary uppercase tracking-wider">Across</p>
+        <p className="text-[10px] font-black text-text-secondary uppercase tracking-wider">{t("cross_across")}</p>
         {puzzle.across.map((a) => (
           <p key={`across-${a.number}`} className="text-xs font-bold text-text-primary">
             <span className="text-primary font-black mr-1">{a.number}.</span>
@@ -278,7 +278,7 @@ export default function CrosswordGame({
             <span className="text-text-secondary ml-1">({a.length})</span>
           </p>
         ))}
-        <p className="text-[10px] font-black text-text-secondary uppercase tracking-wider mt-1">Down</p>
+        <p className="text-[10px] font-black text-text-secondary uppercase tracking-wider mt-1">{t("cross_down")}</p>
         {puzzle.down.map((d) => (
           <p key={`down-${d.number}`} className="text-xs font-bold text-text-primary">
             <span className="text-primary font-black mr-1">{d.number}.</span>
@@ -294,7 +294,7 @@ export default function CrosswordGame({
         className="w-full bg-primary hover:bg-primary/95 disabled:opacity-30 disabled:cursor-not-allowed text-white py-3.5 rounded-xl text-xs font-black shadow-xs transition-all flex items-center justify-center gap-2"
       >
         <Check size={16} />
-        Check Answers
+        {t("cross_check")}
       </button>
     </div>
   );

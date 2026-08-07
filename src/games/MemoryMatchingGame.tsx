@@ -184,12 +184,12 @@ export default function MemoryMatchingGame({
 
         <div className="w-full bg-border-custom/20 rounded-2xl p-4 flex flex-col gap-2 text-xs font-bold text-text-primary">
           <div className="flex justify-between">
-            <span>Moves Made</span>
+            <span>{t("mem_moves_made")}</span>
             <span>{moves}</span>
           </div>
           {isWin && (
             <div className="flex justify-between font-black" style={{ color: 'var(--accent-orange)' }}>
-              <span>Points Awarded</span>
+              <span>{t("mem_points_awarded")}</span>
               <span>+{config.pointsPerWin + timeLeft} Pts</span>
             </div>
           )}
@@ -200,7 +200,7 @@ export default function MemoryMatchingGame({
             onClick={initGame}
             className="flex-1 bg-border-custom hover:bg-border-custom/80 text-text-primary py-3 rounded-xl text-xs font-bold transition-all"
           >
-            Play Again
+            {t("mem_play_again")}
           </button>
           <button
             onClick={onExit}
@@ -229,7 +229,7 @@ export default function MemoryMatchingGame({
             {timeLeft}s
           </span>
         </div>
-        <div className="text-[10px] text-text-secondary text-center">Moves: {moves}</div>
+        <div className="text-[10px] text-text-secondary text-center">{t("mem_moves")}: {moves}</div>
       </div>
 
       {/* Card Grid */}

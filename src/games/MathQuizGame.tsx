@@ -178,7 +178,7 @@ export default function MathQuizGame({
             <span>{Math.round((correctAnswers / quizQuestions.length) * 100)}%</span>
           </div>
           <div className="flex justify-between text-xs font-black" style={{ color: 'var(--accent-orange)' }}>
-            <span>Points Earned</span>
+            <span>{t("flash_points")}</span>
             <span>+{totalPointsEarned} Pts</span>
           </div>
         </div>
@@ -188,7 +188,7 @@ export default function MathQuizGame({
             onClick={handleRestart}
             className="flex-1 bg-border-custom hover:bg-border-custom/80 text-text-primary py-3 rounded-xl text-xs font-bold transition-all"
           >
-            Play Again
+            {t("mathquiz_play_again")}
           </button>
           <button
             onClick={onExit}
@@ -221,7 +221,7 @@ export default function MathQuizGame({
       <div className="flex flex-col gap-1">
         <div className="flex justify-between text-[10px] font-black text-text-secondary">
           <span className="flex items-center gap-1">
-            <Clock size={10} /> Timer
+            <Clock size={10} /> {t("mathquiz_timer")}
           </span>
           <span className={timeLeft <= 5 ? "text-red-500 font-bold" : ""}>{timeLeft}s</span>
         </div>

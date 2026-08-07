@@ -149,22 +149,22 @@ export default function SpeedArithmeticGame({
         <Trophy style={{ color: "var(--accent-yellow)" }} className="fill-current animate-bounce" size={60} />
         <div>
           <h4 className="font-black text-xl text-text-primary">{t("speed_congrats") || "Time&apos;s Up!"}</h4>
-          <p className="text-xs text-text-secondary mt-1">Great effort! Here&apos;s your performance summary.</p>
+          <p className="text-xs text-text-secondary mt-1">{t("speed_performance_desc")}</p>
         </div>
 
         <div className="w-full bg-border-custom/20 rounded-2xl p-4 flex flex-col gap-2 text-xs font-bold text-text-primary">
           <div className="flex justify-between">
-            <span>Correct Answers</span>
+            <span>{t("speed_correct_answers")}</span>
             <span className="font-black text-green-500">{totalCorrect} / {attempts}</span>
           </div>
           <div className="flex justify-between">
             <span className="flex items-center gap-1">
-              <Flame size={14} style={{ color: "var(--accent-orange)" }} /> Best Streak
+              <Flame size={14} style={{ color: "var(--accent-orange)" }} /> {t("speed_best_streak")}
             </span>
             <span className="font-black" style={{ color: "var(--accent-orange)" }}>{bestStreak}x</span>
           </div>
           <div className="flex justify-between font-black" style={{ color: "var(--accent-yellow)" }}>
-            <span>Points Earned</span>
+            <span>{t("flash_points")}</span>
             <span>+{pointsEarned} Pts</span>
           </div>
         </div>
@@ -207,7 +207,7 @@ export default function SpeedArithmeticGame({
       {/* Timer */}
       <div className="flex flex-col gap-1">
         <div className="flex justify-between text-[10px] font-black text-text-secondary">
-          <span className="flex items-center gap-1"><Timer size={10} /> Time</span>
+          <span className="flex items-center gap-1"><Timer size={10} /> {t("speed_time")}</span>
           <span className={timeLeft <= 5 ? "text-red-500 font-bold" : ""}>{timeLeft}s</span>
         </div>
         <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
@@ -222,7 +222,7 @@ export default function SpeedArithmeticGame({
 
       {/* Score & Streak Row */}
       <div className="flex justify-between text-xs font-bold text-text-primary">
-        <span>Score: {score}</span>
+        <span>{t("speed_score", score)}</span>
         <span className="flex items-center gap-1">
           {streak > 0 && <span>🔥</span>} {t("speed_streak") || "Streak"}: {streak}
         </span>
@@ -249,7 +249,7 @@ export default function SpeedArithmeticGame({
             }`}
           >
             {feedback === "correct" ? <Check size={16} /> : <X size={16} />}
-            {feedback === "correct" ? "Correct! +10" : "Wrong!"}
+            {feedback === "correct" ? t("speed_correct_feedback", 10) : t("speed_wrong")}
           </motion.div>
         )}
       </AnimatePresence>

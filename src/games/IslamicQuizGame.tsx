@@ -209,7 +209,7 @@ export default function IslamicQuizGame({
       {/* Timer Bar */}
       <div className="flex flex-col gap-1">
         <div className="flex justify-between text-[10px] font-black text-text-secondary">
-          <span className="flex items-center gap-1"><Clock size={10} /> Timer</span>
+          <span className="flex items-center gap-1"><Clock size={10} /> {t("islamic_timer")}</span>
           <span className={timeLeft <= 5 ? "text-red-500 font-bold" : ""}>{timeLeft}s</span>
         </div>
         <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">

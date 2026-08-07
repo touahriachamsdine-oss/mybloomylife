@@ -127,7 +127,7 @@ export default function WordBuilderGame({
             <span>{Math.round((score / totalPossible) * 100)}%</span>
           </div>
           <div className="flex justify-between font-black" style={{ color: "var(--accent-orange)" }}>
-            <span>Points Earned</span>
+            <span>{t("flash_points")}</span>
             <span>+{score} Pts</span>
           </div>
         </div>
@@ -136,7 +136,7 @@ export default function WordBuilderGame({
             onClick={handleRestart}
             className="flex-1 bg-border-custom hover:bg-border-custom/80 text-text-primary py-3 rounded-xl text-xs font-bold transition-all"
           >
-            Play Again
+            {t("word_play_again")}
           </button>
           <button
             onClick={onExit}
@@ -159,7 +159,7 @@ export default function WordBuilderGame({
           <ArrowLeft size={16} />
           {t("mem_back")}
         </button>
-        <span className="text-xs font-black text-text-primary uppercase tracking-wide">Word Builder</span>
+        <span className="text-xs font-black text-text-primary uppercase tracking-wide">{t("game_word_builder")}</span>
         <span className="text-xs font-black text-primary">{currentIdx + 1}/{words.length}</span>
       </div>
 
@@ -180,7 +180,7 @@ export default function WordBuilderGame({
 
       <div className="p-6 rounded-2xl bg-border-custom/20 border border-border-custom/30 flex flex-col items-center gap-3">
         <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest">
-          Unscramble the word
+          {t("word_unscramble")}
         </p>
         <AnimatePresence mode="wait">
           <motion.div
@@ -214,7 +214,7 @@ export default function WordBuilderGame({
             onChange={(e) => setInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
             disabled={result !== null}
-            placeholder="Type the word..."
+            placeholder={t("word_input_placeholder")}
             className="w-full py-3.5 px-4 rounded-2xl bg-surface border border-border-custom focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-text-primary placeholder:text-text-secondary/60 outline-none transition-all text-center tracking-[0.2em] uppercase"
             autoFocus
           />
@@ -224,7 +224,7 @@ export default function WordBuilderGame({
               animate={{ opacity: 1, y: 0 }}
               className="absolute -bottom-6 left-0 right-0 text-center text-xs font-bold text-primary"
             >
-              Hint: starts with "{currentWord.hint}"
+              {t("word_hint", currentWord.hint)}
             </motion.div>
           )}
         </div>
@@ -240,7 +240,7 @@ export default function WordBuilderGame({
             }`}
           >
             <Lightbulb size={14} />
-            Hint
+            {t("word_hint_btn")}
           </button>
 
           <button
@@ -248,7 +248,7 @@ export default function WordBuilderGame({
             disabled={!input.trim() || result !== null}
             className="flex-1 bg-primary hover:bg-primary/95 disabled:opacity-30 disabled:cursor-not-allowed text-white py-3 rounded-xl text-xs font-black shadow-xs transition-all"
           >
-            Submit
+            {t("word_submit")}
           </button>
         </div>
       </div>
@@ -268,13 +268,13 @@ export default function WordBuilderGame({
             {result === "correct" ? (
               <>
                 <Check size={16} className="shrink-0" />
-                <span>Correct! +{hintUsed ? 10 : 15} points</span>
+                <span>{t("word_correct_feedback", hintUsed ? 10 : 15)}</span>
               </>
             ) : (
               <>
                 <X size={16} className="shrink-0" />
                 <span>
-                  Wrong! The answer was <strong>{currentWord.answer}</strong>
+                  {t("word_wrong_feedback", currentWord.answer)}
                 </span>
               </>
             )}
@@ -282,7 +282,7 @@ export default function WordBuilderGame({
               onClick={handleNext}
               className="ml-auto bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg font-black text-xs transition-all"
             >
-              {currentIdx + 1 < words.length ? "Next" : "Finish"}
+              {currentIdx + 1 < words.length ? t("word_next") : t("word_finish")}
             </button>
           </motion.div>
         )}

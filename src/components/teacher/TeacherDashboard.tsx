@@ -124,7 +124,7 @@ export default function TeacherDashboard({ t, teacher, onNavigate }: Props) {
               {recentMoods.slice(0, 5).map((m, i) => (
                 <div key={i} className="flex items-center gap-2 text-[10px]">
                   <span className="font-bold text-text-primary">{m.student}</span>
-                  <span className="text-text-secondary">{m.mood}</span>
+                  <span className="text-text-secondary">{t(m.mood)}</span>
                   <span className="text-text-secondary ml-auto">{new Date(m.timestamp).toLocaleDateString()}</span>
                 </div>
               ))}

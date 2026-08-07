@@ -138,15 +138,15 @@ export default function VocabMatchGame({
           <AlertCircle className="text-red-500 animate-pulse" size={60} />
         )}
         <div>
-          <h4 className="font-black text-xl text-text-primary">{isWin ? "🎉 Congratulations!" : "⏰ Time's Up!"}</h4>
-          <p className="text-xs text-text-secondary mt-1">{isWin ? "You matched all word pairs!" : "Try again next time"}</p>
+          <h4 className="font-black text-xl text-text-primary">{isWin ? t("mem_victory") : t("mem_timeout")}</h4>
+          <p className="text-xs text-text-secondary mt-1">{isWin ? t("vocab_win_desc") : t("mem_timeout_desc")}</p>
         </div>
         <div className="w-full bg-border-custom/20 rounded-2xl p-4 flex flex-col gap-2 text-xs font-bold text-text-primary">
-          <div className="flex justify-between"><span>Moves</span><span>{moves}</span></div>
-          {isWin && <div className="flex justify-between font-black" style={{ color: 'var(--accent-orange)' }}><span>Points</span><span>+{150 + timeLeft} Pts</span></div>}
+          <div className="flex justify-between"><span>{t("vocab_moves")}</span><span>{moves}</span></div>
+          {isWin && <div className="flex justify-between font-black" style={{ color: 'var(--accent-orange)' }}><span>{t("mem_points_label")}</span><span>+{150 + timeLeft} Pts</span></div>}
         </div>
         <div className="flex gap-2 w-full">
-          <button onClick={initGame} className="flex-1 bg-border-custom hover:bg-border-custom/80 text-text-primary py-3 rounded-xl text-xs font-bold">Play Again</button>
+          <button onClick={initGame} className="flex-1 bg-border-custom hover:bg-border-custom/80 text-text-primary py-3 rounded-xl text-xs font-bold">{t("vocab_play_again")}</button>
           <button onClick={onExit} className="flex-1 bg-primary text-white py-3 rounded-xl text-xs font-black">{t("mem_finish_game")}</button>
         </div>
       </div>
@@ -159,10 +159,10 @@ export default function VocabMatchGame({
         <button onClick={onExit} className="p-1 rounded-lg hover:bg-border-custom/50 text-text-secondary flex items-center gap-1 text-xs font-black">
           <ArrowLeft size={16} /> {t("mem_back")}
         </button>
-        <span className="text-xs font-black text-text-primary">Vocab Match</span>
+        <span className="text-xs font-black text-text-primary">{t("game_vocab_match")}</span>
         <span className={`text-xs font-black ${timeLeft <= 10 ? "text-red-500 animate-pulse" : "text-primary"}`}>{timeLeft}s</span>
       </div>
-      <div className="text-center text-[10px] text-text-secondary font-bold">Matches: {cards.filter(c => c.isMatched).length / 2} / {pairs.length} · Moves: {moves}</div>
+      <div className="text-center text-[10px] text-text-secondary font-bold">{t("vocab_stats", cards.filter(c => c.isMatched).length / 2, pairs.length, moves)}</div>
 
       <div className="grid grid-cols-4 gap-2">
         {cards.map(card => {

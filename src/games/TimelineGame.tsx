@@ -104,7 +104,7 @@ export default function TimelineGame({
         <Trophy style={{ color: "var(--accent-yellow)" }} className="fill-current animate-bounce" size={60} />
         <div>
           <h4 className="font-black text-xl text-text-primary">{t("timeline_result") || "Timeline Complete!"}</h4>
-          <p className="text-xs text-text-secondary mt-1">Here&apos;s how you sorted history.</p>
+          <p className="text-xs text-text-secondary mt-1">{t("timeline_result_desc")}</p>
         </div>
 
         <div className="w-full bg-border-custom/20 rounded-2xl p-4 flex flex-col gap-2 text-xs font-bold text-text-primary">

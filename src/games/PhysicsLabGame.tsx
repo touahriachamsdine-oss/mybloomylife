@@ -201,14 +201,14 @@ export default function PhysicsLabGame({
           </h4>
           <p className="text-xs text-text-secondary mt-1">
             {isWin
-              ? "All formulas matched perfectly!"
-              : `Matched ${matchedCount} of ${totalPairs} formulas.`}
+              ? t("physlab_all_matched_win")
+              : t("physlab_matched_count", matchedCount, totalPairs)}
           </p>
         </div>
 
         <div className="w-full bg-border-custom/20 rounded-2xl p-4 flex flex-col gap-2 text-xs font-bold text-text-primary">
           <div className="flex justify-between">
-            <span>Correct Matches</span>
+            <span>{t("physlab_correct_matches")}</span>
             <span className="font-black text-green-500">
               {matchedCount} / {totalPairs}
             </span>
@@ -217,7 +217,7 @@ export default function PhysicsLabGame({
             className="flex justify-between font-black"
             style={{ color: "var(--accent-yellow)" }}
           >
-            <span>Points Earned</span>
+            <span>{t("physlab_points_earned")}</span>
             <span>+{pointsEarned} Pts</span>
           </div>
         </div>
@@ -227,7 +227,7 @@ export default function PhysicsLabGame({
             onClick={handleRestart}
             className="flex-1 bg-border-custom hover:bg-border-custom/80 text-text-primary py-3 rounded-xl text-xs font-bold transition-all"
           >
-            Play Again
+            {t("physlab_play_again")}
           </button>
           <button
             onClick={onExit}
@@ -253,7 +253,7 @@ export default function PhysicsLabGame({
         </button>
         <span className="text-xs font-black text-text-primary uppercase tracking-wide flex items-center gap-1.5">
           <Atom size={14} className="text-primary" />
-          Physics Lab
+          {t("physlab_title")}
         </span>
         <span className="text-xs font-black flex items-center gap-1">
           <Zap size={14} style={{ color: "var(--accent-orange)" }} />
@@ -265,10 +265,10 @@ export default function PhysicsLabGame({
       <div className="flex flex-col gap-1">
         <div className="flex justify-between text-[10px] font-black text-text-secondary">
           <span className="flex items-center gap-1">
-            <Clock size={10} /> Time
+            <Clock size={10} /> {t("physlab_time")}
           </span>
           <span className="flex items-center gap-1">
-            <Sparkles size={10} /> {matchedCount}/{totalPairs} matched
+            <Sparkles size={10} /> {t("physlab_matched_progress", matchedCount, totalPairs)}
           </span>
         </div>
         <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
@@ -281,7 +281,7 @@ export default function PhysicsLabGame({
         </div>
         <div className="flex justify-between text-[10px] font-black">
           <span className={timeLeft <= 10 ? "text-red-500" : "text-text-secondary"}>
-            {timeLeft}s remaining
+            {timeLeft}s {t("physlab_remaining")}
           </span>
           <span style={{ color: "var(--accent-orange)" }}>+{score} pts</span>
         </div>
@@ -302,8 +302,8 @@ export default function PhysicsLabGame({
           >
             {feedback === "correct" ? <Check size={16} /> : <X size={16} />}
             {feedback === "correct"
-              ? `+${POINTS_PER_MATCH} Correct!`
-              : "Wrong match!"}
+              ? t("physlab_feedback_correct", POINTS_PER_MATCH)
+              : t("physlab_feedback_wrong")}
           </motion.div>
         )}
       </AnimatePresence>
@@ -313,7 +313,7 @@ export default function PhysicsLabGame({
         {/* Formulas Column */}
         <div className="flex flex-col gap-2">
           <span className="text-[10px] font-black text-text-secondary uppercase tracking-wider px-1">
-            Formula
+            {t("physlab_formula_label")}
           </span>
           <AnimatePresence>
             {formulaList
@@ -341,7 +341,7 @@ export default function PhysicsLabGame({
           </AnimatePresence>
           {formulaList.filter((f) => !f.matched).length === 0 && (
             <div className="text-xs text-text-secondary text-center py-6 italic font-semibold">
-              All matched!
+              {t("physlab_all_matched")}
             </div>
           )}
         </div>
@@ -349,7 +349,7 @@ export default function PhysicsLabGame({
         {/* Descriptions Column */}
         <div className="flex flex-col gap-2">
           <span className="text-[10px] font-black text-text-secondary uppercase tracking-wider px-1">
-            Description
+            {t("physlab_description_label")}
           </span>
           <AnimatePresence>
             {descList
@@ -384,7 +384,7 @@ export default function PhysicsLabGame({
           </AnimatePresence>
           {descList.filter((d) => !d.matched).length === 0 && (
             <div className="text-xs text-text-secondary text-center py-6 italic font-semibold">
-              All matched!
+              {t("physlab_all_matched")}
             </div>
           )}
         </div>
@@ -393,8 +393,8 @@ export default function PhysicsLabGame({
       {/* Instruction Bar */}
       <div className="text-center text-[10px] text-text-secondary font-bold py-2 border-t border-border-custom/50">
         {selectedFormulaId !== null
-          ? "Now tap the matching description"
-          : "Tap a formula, then tap its matching description"}
+          ? t("physlab_prompt_selected")
+          : t("physlab_prompt_default")}
       </div>
     </div>
   );

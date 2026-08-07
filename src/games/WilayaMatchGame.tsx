@@ -126,15 +126,15 @@ export default function WilayaMatchGame({
           <AlertCircle className="text-red-500 animate-pulse" size={60} />
         )}
         <div>
-          <h4 className="font-black text-xl text-text-primary">{isWin ? "🎉 Algerian Geography Master!" : "⏰ Time's Up!"}</h4>
-          <p className="text-xs text-text-secondary mt-1">{isWin ? "You matched all wilayas!" : "Try again to learn the wilayas"}</p>
+          <h4 className="font-black text-xl text-text-primary">{isWin ? t("wilaya_win_title") : t("wilaya_timeout_title")}</h4>
+          <p className="text-xs text-text-secondary mt-1">{isWin ? t("wilaya_win_desc") : t("wilaya_timeout_desc")}</p>
         </div>
         <div className="w-full bg-border-custom/20 rounded-2xl p-4 flex flex-col gap-2 text-xs font-bold text-text-primary">
-          <div className="flex justify-between"><span>Moves</span><span>{moves}</span></div>
-          {isWin && <div className="flex justify-between font-black" style={{ color: 'var(--accent-orange)' }}><span>Points</span><span>+{pickCount * 25 + timeLeft} Pts</span></div>}
+          <div className="flex justify-between"><span>{t("wilaya_moves")}</span><span>{moves}</span></div>
+          {isWin && <div className="flex justify-between font-black" style={{ color: 'var(--accent-orange)' }}><span>{t("mem_points_label")}</span><span>+{pickCount * 25 + timeLeft} Pts</span></div>}
         </div>
         <div className="flex gap-2 w-full">
-          <button onClick={initGame} className="flex-1 bg-border-custom hover:bg-border-custom/80 text-text-primary py-3 rounded-xl text-xs font-bold">Play Again</button>
+          <button onClick={initGame} className="flex-1 bg-border-custom hover:bg-border-custom/80 text-text-primary py-3 rounded-xl text-xs font-bold">{t("wilaya_play_again")}</button>
           <button onClick={onExit} className="flex-1 bg-primary text-white py-3 rounded-xl text-xs font-black">{t("mem_finish_game")}</button>
         </div>
       </div>
@@ -149,10 +149,10 @@ export default function WilayaMatchGame({
         <button onClick={onExit} className="p-1 rounded-lg hover:bg-border-custom/50 text-text-secondary flex items-center gap-1 text-xs font-black">
           <ArrowLeft size={16} /> {t("mem_back")}
         </button>
-        <span className="text-xs font-black text-text-primary">Wilaya Match</span>
+        <span className="text-xs font-black text-text-primary">{t("wilaya_title")}</span>
         <span className={`text-xs font-black ${timeLeft <= 10 ? "text-red-500 animate-pulse" : "text-primary"}`}>{timeLeft}s</span>
       </div>
-      <div className="text-center text-[10px] text-text-secondary font-bold">Matches: {cards.filter(c => c.isMatched).length / 2} / {pickCount} · Moves: {moves}</div>
+      <div className="text-center text-[10px] text-text-secondary font-bold">{t("wilaya_matches_moves", cards.filter(c => c.isMatched).length / 2, pickCount, moves)}</div>
 
       <div className={`grid ${cols} gap-2`}>
         {cards.map(card => {
