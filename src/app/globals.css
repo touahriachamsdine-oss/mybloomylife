@@ -21,37 +21,91 @@
   --font-arabic: "Cairo",  var(--font-geist-sans), system-ui, -apple-system, sans-serif;
 }
 
+/* ════════════ PALETTE LOCK — only 4 hues may appear ════════════
+   #D9EFE0 · #BEE9CF · #F7D471 · #E67D71
+   Remaps every default Tailwind color family onto these hues so
+   existing utilities (red-500, green-600, indigo-…, etc.) resolve to
+   the palette instead of foreign colors. Neutrals (gray/white) are kept.
+   ─ Coral family: red, orange, rose, pink, fuchsia → #E67D71
+   ─ Yellow family: yellow, amber → #F7D471
+   ─ Mint family: green, emerald, teal, cyan, lime, blue, indigo,
+     sky, violet, purple → #D9EFE0 / #BEE9CF                */
+@theme {
+  /* Coral (was red/orange/rose/pink/fuchsia) */
+  --color-red-100: #FADDD8; --color-red-200: #F4C2BA; --color-red-300: #EDA094;
+  --color-red-400: #E98A7E; --color-red-500: #E67D71; --color-red-600: #C65E52;
+  --color-red-700: #A5443E; --color-red-800: #7E352C; --color-red-900: #5C2620;
+  --color-red-950: #3C1713;
+  --color-orange-100: #FADDD8; --color-orange-300: #EDA094; --color-orange-400: #E98A7E;
+  --color-orange-500: #E67D71; --color-orange-600: #C65E52; --color-orange-700: #A5443E;
+  --color-orange-900: #5C2620; --color-orange-950: #3C1713;
+  --color-rose-100: #FADDD8; --color-rose-500: #E67D71; --color-rose-700: #A5443E;
+  --color-rose-950: #3C1713;
+  --color-pink-300: #EDA094; --color-pink-500: #E67D71; --color-pink-700: #A5443E;
+  --color-pink-950: #3C1713;
+  --color-fuchsia-950: #3C1713;
+
+  /* Yellow family (was yellow/amber) */
+  --color-yellow-100: #FCEED0; --color-yellow-300: #F9D990; --color-yellow-400: #F9D87F;
+  --color-yellow-500: #F7D471; --color-yellow-600: #D2B14A; --color-yellow-700: #9C7F2B;
+  --color-yellow-900: #4E4016; --color-yellow-950: #332A0E;
+  --color-amber-100: #FCEED0; --color-amber-200: #FAE3A6; --color-amber-400: #F9D87F;
+  --color-amber-500: #F7D471; --color-amber-600: #D2B14A; --color-amber-700: #9C7F2B;
+  --color-amber-900: #4E4016; --color-amber-950: #332A0E;
+
+  /* Mint family (green/emerald/teal/cyan/lime/blue/indigo/sky/violet/purple) */
+  --color-green-100: #E8F6EC; --color-green-200: #D9EFE0; --color-green-300: #BEE9CF;
+  --color-green-400: #77C4A1; --color-green-500: #5CB58E; --color-green-600: #4A9674;
+  --color-green-700: #37805F; --color-green-800: #29604A; --color-green-900: #1F4636;
+  --color-green-950: #123027; --color-green-50: #F4FBF6;
+  --color-emerald-100: #E8F6EC; --color-emerald-300: #BEE9CF; --color-emerald-500: #5CB58E;
+  --color-emerald-600: #4A9674; --color-emerald-700: #37805F; --color-emerald-900: #1F4636;
+  --color-emerald-950: #123027;
+  --color-teal-100: #E8F6EC; --color-teal-500: #5CB58E; --color-teal-700: #37805F;
+  --color-teal-950: #123027;
+  --color-cyan-500: #5CB58E;
+  --color-lime-100: #E8F6EC;
+  --color-blue-100: #E8F6EC; --color-blue-200: #D9EFE0; --color-blue-300: #BEE9CF;
+  --color-blue-400: #77C4A1; --color-blue-500: #5CB58E; --color-blue-600: #4A9674;
+  --color-blue-700: #37805F; --color-blue-900: #1F4636; --color-blue-950: #123027;
+  --color-indigo-100: #E8F6EC; --color-indigo-400: #77C4A1; --color-indigo-600: #4A9674;
+  --color-indigo-700: #37805F; --color-indigo-950: #123027;
+  --color-sky-100: #E8F6EC; --color-sky-700: #37805F; --color-sky-950: #123027;
+  --color-violet-100: #E8F6EC; --color-violet-500: #5CB58E; --color-violet-600: #4A9674;
+  --color-violet-700: #37805F; --color-violet-950: #123027;
+  --color-purple-100: #E8F6EC; --color-purple-400: #77C4A1; --color-purple-500: #5CB58E;
+  --color-purple-700: #37805F; --color-purple-950: #123027;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    BLOOM GARDEN — Single Unified Palette
-   Soft Peach-Orange · Soft Yellow · Pastel Light Green
+   Mint Green #D9EFE0 · Mint #BEE9CF · Yellow #F7D471 · Coral #E67D71
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-  /* ── Primary accent (pastel sage green) ─── */
-  --primary:        #5BB891;
-  --primary-light:  #C8EDD9;
+  /* ── Primary accent (coral) ─────────────── */
+  --primary:        #E67D71;
+  --primary-light:  #BEE9CF;
   --on-primary:     #FFFFFF;
 
-  /* ── Named accent tones ───────────────────
-     Use these anywhere you need the peach or
-     yellow from the palette (cards, badges…) */
-  --accent-orange:  #F4956A;   /* soft peach-orange  */
-  --accent-yellow:  #F9D56E;   /* soft warm yellow   */
-  --accent-green:   #5BB891;   /* same as --primary  */
+  /* ── Named accent tones ─────────────────── */
+  --accent-orange:  #E67D71;   /* coral   */
+  --accent-yellow:  #F7D471;   /* soft warm yellow */
+  --accent-green:   #BEE9CF;   /* mint    */
 
-  /* ── Backgrounds (3-stop gradient: yellow → peach → green) */
-  --bg-start:       #FEFDF5;   /* warm yellow-cream  */
-  --bg-mid:         #FFF3E8;   /* soft peach         */
-  --bg-end:         #F2FAF5;   /* pastel green       */
+  /* ── Backgrounds (3-stop gradient: light mint → mint → yellow) */
+  --bg-start:       #D9EFE0;
+  --bg-mid:         #BEE9CF;
+  --bg-end:         #F7D471;
 
-  /* ── Surfaces & borders ───────────────────── */
+  /* ── Surfaces & borders ─────────────────── */
   --surface:        #FFFFFF;
-  --surface-tint:   #F8FEFA;   /* very light green surface variant */
-  --border-custom:  #D6EDE1;
+  --surface-tint:   #D9EFE0;   /* light mint */
+  --border-custom:  #BEE9CF;
 
-  /* ── Typography ───────────────────────────── */
-  --text-primary:   #2A3D35;   /* deep forest green  */
-  --text-secondary: #5C7A68;   /* muted sage         */
+  /* ── Typography (deep shades of the green family) ── */
+  --text-primary:   #2F4A42;
+  --text-secondary: #5E7B6E;
 }
 
 
