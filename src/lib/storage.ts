@@ -224,8 +224,12 @@ export async function bloomHydrateFromServer(): Promise<void> {
     }
   }
 
-  // Server wins for keys it already knows about.
+  // Server wins for keys it already knows about — EXCEPT the session itself
+  // (who is logged-in on this device). The session is per-device state, and a
+  // shared remote store must not overwrite it across devices/accounts.
+  const SESSION_KEYS = new Set<string>([BLOOM_KEYS.userRole, BLOOM_KEYS.currentUser]);
   for (const [key, value] of Object.entries(remote)) {
+    if (SESSION_KEYS.has(key)) continue;
     if (value === "") {
       try {
         localStorage.removeItem(key);
