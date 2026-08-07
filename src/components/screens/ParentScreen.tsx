@@ -24,14 +24,19 @@ function ParentScreen({
 }) {
   const teacherData = useTeacherData();
   const [parentView, setParentView] = useState<"overview" | "attendance" | "behavior" | "goals" | "messages" | "reports">("overview");
-  const { studentGrades, linkChildAccount, linkedChildren, familyLinkCodes, studentLevels, currentUser, userPoints, gpaHistory, recordGpaSnapshot, goals, addGoal, deleteGoal, parentMessages, sendParentMessage, markMessageRead, guidanceNotes, moodLogs } = useBloom();
+  const { studentGrades, linkChildAccount, linkedChildren, familyLinkCodes, studentLevels, currentUser, userPoints, gpaHistory, recordGpaSnapshot, goals, addGoal, deleteGoal, parentMessages, sendParentMessage, markMessageRead, guidanceNotes, moodLogs, studentAssignments } = useBloom();
   const parentEmail = currentUser?.email ?? "";
+  // Children visible to this parent: admin-assigned ones + any linked by code.
+  const assignedChildren = Object.entries(studentAssignments)
+    .filter(([, a]) => (a.parents || []).includes(parentEmail))
+    .map(([name]) => name);
+  const children = Array.from(new Set([...assignedChildren, ...linkedChildren]));
   const storedPin = bloomGetJson<Record<string, StoredCredential>>(BLOOM_KEYS.parentPins, {})[parentEmail];
   const [pinMode, setPinMode] = useState<"enter" | "create">(storedPin ? "enter" : "create");
   const [pin, setPin] = useState<string>("");
   const [pinError, setPinError] = useState<boolean>(false);
   const [selectedChild, setSelectedChild] = useState<string>(() => {
-    return linkedChildren[0] || "Sara";
+    return children[0] || "Sara";
   });
   const [supportText, setSupportText] = useState<string>("");
   const [showToast, setShowToast] = useState<boolean>(false);
@@ -42,12 +47,12 @@ function ParentScreen({
   const [goalTitle, setGoalTitle] = useState<string>("");
   const [goalTarget, setGoalTarget] = useState<number>(5);
 
-  // Synchronize selectedChild with linkedChildren updates
+  // Synchronize selectedChild with children updates
   useEffect(() => {
-    if (linkedChildren.length > 0 && !linkedChildren.includes(selectedChild)) {
-      setSelectedChild(linkedChildren[0]);
+    if (children.length > 0 && !children.includes(selectedChild)) {
+      setSelectedChild(children[0]);
     }
-  }, [linkedChildren, selectedChild]);
+  }, [children, selectedChild]);
 
   // Record a real GPA snapshot each time the overview shows a new average
   useEffect(() => {
@@ -310,10 +315,10 @@ function ParentScreen({
         </div>
 
         {/* Already linked children */}
-        {linkedChildren.length > 0 && (
+        {children.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <span className="text-[9px] font-black text-text-secondary uppercase tracking-wider">{t("parent_linked_children")}</span>
-            {linkedChildren.map((childName) => {
+            {children.map((childName) => {
               const level = studentLevels[childName as "Sara" | "Ahmed"];
               const code = familyLinkCodes[childName] || "—";
               return (
@@ -359,9 +364,9 @@ function ParentScreen({
       </div>
 
       {/* Child Switcher Tabs */}
-      {linkedChildren.length > 0 && (
+      {children.length > 0 && (
         <div className="flex gap-2 flex-wrap">
-          {linkedChildren.map((cName) => {
+          {children.map((cName) => {
             const isActive = selectedChild === cName;
             return (
               <button

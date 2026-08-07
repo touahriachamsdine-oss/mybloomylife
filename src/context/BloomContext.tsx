@@ -239,7 +239,12 @@ export interface RegisteredUser {
   password?: string;
 }
 
-interface BloomContextType {
+export interface StudentAssignment {
+  parents: string[];
+  psychologists: string[];
+}
+
+export interface BloomContextType {
   themeMode: ThemeMode;
   appLanguage: AppLanguage;
   currentMood: string; // key like "mood_calm"
@@ -325,6 +330,11 @@ interface BloomContextType {
   familyLinkCodes: Record<string, string>;
   linkedChildren: string[];
   linkChildAccount: (code: string) => { success: boolean; childName?: string };
+
+  // Admin-assigned access: which parents & psychologists may see each student.
+  // Only those users (plus the student and the admin) can view the student's data.
+  studentAssignments: Record<string, StudentAssignment>;
+  assignStudentRoles: (studentName: string, assignments: StudentAssignment) => void;
 
   // Mood history logs
   moodLogs: MoodLog[];
@@ -598,6 +608,11 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Parent's linked children list (persisted)
   const [linkedChildren, setLinkedChildrenState] = useState<string[]>([]);
 
+  // Admin-assigned roles per student (persisted). Keys are student names.
+  const [studentAssignments, setStudentAssignmentsState] = useState<Record<string, StudentAssignment>>(() =>
+    bloomGetJson<Record<string, StudentAssignment>>(BLOOM_KEYS.studentAssignments, {})
+  );
+
   // Mood logs state
   const [moodLogs, setMoodLogsState] = useState<MoodLog[]>([
     { id: "1", student: "Sara", mood: "mood_happy", timestamp: "10:30 AM" },
@@ -772,6 +787,8 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
     }
     if (savedLinkCodes) setFamilyLinkCodes(savedLinkCodes);
+    const savedAssignments = bloomGetJson<Record<string, StudentAssignment> | null>(BLOOM_KEYS.studentAssignments, null);
+    if (savedAssignments) setStudentAssignmentsState(savedAssignments);
     if (savedGpaHistory) setGpaHistoryState(savedGpaHistory);
 
     if (savedGoals) {
@@ -1137,6 +1154,18 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Guidance notes operations
+  const assignStudentRoles = (studentName: string, assignments: StudentAssignment) => {
+    const next = {
+      ...studentAssignments,
+      [studentName]: {
+        parents: [...new Set(assignments.parents || [])],
+        psychologists: [...new Set(assignments.psychologists || [])]
+      }
+    };
+    setStudentAssignmentsState(next);
+    bloomSetJson(BLOOM_KEYS.studentAssignments, next);
+  };
+
   const updateGuidanceNotes = (student: string, notes: string[]) => {
     const updated = { ...guidanceNotes, [student]: notes };
     setGuidanceNotesState(updated);
@@ -1380,6 +1409,8 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         familyLinkCodes,
         linkedChildren,
         linkChildAccount,
+        studentAssignments,
+        assignStudentRoles,
         moodLogs,
         addMoodLog,
         guidanceNotes,

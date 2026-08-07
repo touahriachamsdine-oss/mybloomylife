@@ -14,7 +14,7 @@ function PsychologicalScreen({
   setCurrentMood: (m: string) => void;
   addPoints: (pts: number) => void;
 }) {
-  const { userRole, currentUser, moodLogs, studentGrades, isRtl, guidanceNotes, updateGuidanceNotes, requestHelp } = useBloom();
+  const { userRole, currentUser, moodLogs, studentGrades, isRtl, guidanceNotes, updateGuidanceNotes, requestHelp, studentAssignments } = useBloom();
   const [breathingActive, setBreathingActive] = useState<boolean>(false);
   const [breathingPhase, setBreathingPhase] = useState<"in" | "hold" | "out">("in");
   const [breathingTimer, setBreathingTimer] = useState<number>(60);
@@ -30,7 +30,14 @@ function PsychologicalScreen({
     setHelpSent(true);
   };
 
-  const students = Object.keys(studentGrades);
+  // Psychologists only see students the admin assigned to them; otherwise
+  // (no assignments configured yet) keep the previous behavior (all students).
+  const allStudentNames = Object.keys(studentGrades);
+  const hasAnyPsyAssignment = Object.values(studentAssignments).some(a => (a.psychologists || []).length > 0);
+  const students =
+    userRole === "psychologist" && hasAnyPsyAssignment
+      ? allStudentNames.filter(name => (studentAssignments[name]?.psychologists || []).includes(currentUser?.email ?? ""))
+      : allStudentNames;
 
   const [newAdvice, setNewAdvice] = useState("");
   const [adviceStudent, setAdviceStudent] = useState<string>("Sara");

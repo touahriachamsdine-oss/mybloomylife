@@ -16,7 +16,9 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
     updateGrade,
     appLanguage,
     registeredUsers,
-    deleteRegisteredUser
+    deleteRegisteredUser,
+    studentAssignments,
+    assignStudentRoles
   } = useBloom();
 
   // Admin sub-tab state
@@ -151,6 +153,51 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
   const studentLevel = studentLevels[selectedStudent];
   const studentMoods = moodLogs.filter(l => l.student === selectedStudent);
 
+  // ── Access control (assigned parents & psychologists) ──
+  const currentAssignments = studentAssignments[selectedStudent] || { parents: [], psychologists: [] };
+  const parentUsers = registeredUsers.filter(u => u.role === "parent");
+  const psyUsers = registeredUsers.filter(u => u.role === "psychologist");
+  const toggleAssignment = (role: "parent" | "psychologist", email: string) => {
+    const cur = studentAssignments[selectedStudent] || { parents: [], psychologists: [] };
+    const arr = role === "parent" ? cur.parents : cur.psychologists;
+    const list = arr.includes(email) ? arr.filter(e => e !== email) : [...arr, email];
+    assignStudentRoles(selectedStudent, {
+      parents: role === "parent" ? list : cur.parents,
+      psychologists: role === "psychologist" ? list : cur.psychologists
+    });
+  };
+  const renderAssignList = (users: { email: string; name: string; role: string }[], role: "parent" | "psychologist") => {
+    const active = role === "parent" ? currentAssignments.parents : currentAssignments.psychologists;
+    return (
+      <div className="flex flex-col gap-1">
+        {users.length === 0 ? (
+          <p className="text-[10px] text-text-secondary italic py-2">{t("admin_access_none")}</p>
+        ) : (
+          users.map(u => {
+            const on = active.includes(u.email);
+            return (
+              <button
+                key={u.email}
+                onClick={() => toggleAssignment(role, u.email)}
+                className={`flex items-center justify-between px-3 py-2 rounded-xl border text-left transition-all ${
+                  on ? "bg-primary/10 border-primary/30" : "bg-border-custom/10 border-border-custom/40 hover:bg-border-custom/20"
+                }`}
+              >
+                <span className="flex flex-col">
+                  <span className={`text-xs font-black ${on ? "text-primary" : "text-text-primary"}`}>{u.name}</span>
+                  <span className="text-[9px] text-text-secondary font-bold">{u.email}</span>
+                </span>
+                <span className={`text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center ${on ? "bg-primary text-white" : "bg-border-custom/50 text-text-secondary"}`}>
+                  {on ? <Check size={9} /> : <Plus size={9} />}
+                </span>
+              </button>
+            );
+          })
+        )}
+      </div>
+    );
+  };
+
   const tabBtn = (id: "levels" | "games" | "students" | "users", label: string, icon: React.ReactNode) => (
     <button
       key={id}
@@ -241,6 +288,25 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Access Control: who may see this student's data */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-sm text-text-primary flex items-center gap-2">
+                <Users size={14} className="text-primary" />
+                {t("admin_access_title")}
+              </h3>
+              <span className="text-[9px] font-black text-text-secondary">{selectedStudent}</span>
+            </div>
+            <div>
+              <div className="text-[10px] font-black text-text-secondary uppercase tracking-wide mb-1.5">{t("admin_access_parents")}</div>
+              {renderAssignList(parentUsers, "parent")}
+            </div>
+            <div>
+              <div className="text-[10px] font-black text-text-secondary uppercase tracking-wide mb-1.5">{t("admin_access_psychologists")}</div>
+              {renderAssignList(psyUsers, "psychologist")}
+            </div>
           </div>
 
           {/* Mood History */}

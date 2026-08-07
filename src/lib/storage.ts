@@ -40,6 +40,7 @@ export const BLOOM_KEYS = {
   priorityTasks: "bloom_priority_tasks",
   helpRequests: "bloom_help_requests",
   dailyChallenges: "bloom_daily_challenges",
+  studentAssignments: "bloom_student_assignments",
   storageVersion: "bloom_storage_version",
 } as const;
 
