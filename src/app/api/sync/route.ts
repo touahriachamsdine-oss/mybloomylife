@@ -1,21 +1,34 @@
 import { NextRequest } from "next/server";
 import { ensureSchema, loadAllState, upsertRows, hasDb, sql } from "@/lib/db";
-import { seedDemoAccounts } from "@/lib/auth";
+import { seedDemoAccounts, DEMO_ACCOUNTS } from "@/lib/auth";
 
 const REGISTERED_USERS_KEY = "bloom_registered_users";
 
-// If the shared store has no registered-users key yet (first run server-side),
-// seed the demo accounts there so every device converges on the same list and
-// the admin account always exists regardless of how a device bootstrapped.
-async function seedMissingUsers(): Promise<void> {
-  if (!sql) return;
+// Blend the demo accounts into the shared store. Every demo email is ensured
+// to exist (added if missing) so fresher credentials are available on every
+// device without wiping users that were registered by hand.
+async function ensureDemoUsers(): Promise<void> {
+  if (!sql || !loadAllState) return;
   try {
-    const existing = await loadAllState();
-    if (existing[REGISTERED_USERS_KEY]) return;
+    const state = await loadAllState();
+    const raw = state[REGISTERED_USERS_KEY];
+    let users: { email: string; name: string; role: string }[] = [];
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) users = parsed;
+      } catch {
+        users = [];
+      }
+    }
+    const existingEmails = new Set(users.map(u => u.email));
+    const missingEmails = DEMO_ACCOUNTS.filter(a => !existingEmails.has(a.email)).map(a => a.email);
+    if (missingEmails.length === 0) return;
     const seeded = await seedDemoAccounts();
-    await upsertRows([{ key: REGISTERED_USERS_KEY, value: JSON.stringify(seeded) }]);
+    const toAdd = seeded.filter(a => missingEmails.includes(a.email));
+    await upsertRows([{ key: REGISTERED_USERS_KEY, value: JSON.stringify([...users, ...toAdd]) }]);
   } catch (e) {
-    console.error("[api/sync] seed users failed", e);
+    console.error("[api/sync] ensure demo users failed", e);
   }
 }
 
@@ -28,7 +41,7 @@ export async function GET() {
   const ok = await ensureSchema();
   if (!ok) return Response.json({ ok: false, error: "db_error" }, { status: 500 });
   try {
-    await seedMissingUsers();
+    await ensureDemoUsers();
     const state = await loadAllState();
     return Response.json({ ok: true, state });
   } catch (e) {

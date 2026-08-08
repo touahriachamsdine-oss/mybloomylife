@@ -71,6 +71,10 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   { email: "psy@example.com", name: "Dr. Laila", role: "psychologist", password: "123" },
   { email: "laila@example.com", name: "Dr. Laila", role: "psychologist", password: "123" },
   { email: "admin@example.com", name: "System Admin", role: "admin", password: "123" },
+  { email: "admin2@example.com", name: "Admin II", role: "admin", password: "1234" },
+  { email: "yamina@example.com", name: "Yamina", role: "youth", password: "123" },
+  { email: "maman@example.com", name: "Abu Yamina", role: "parent", password: "1234" },
+  { email: "drmeriem@example.com", name: "Dr. Meriem", role: "psychologist", password: "123" },
 ];
 
 export async function seedDemoAccounts(): Promise<AuthUser[]> {
