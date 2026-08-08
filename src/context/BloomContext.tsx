@@ -753,6 +753,17 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedPoints) setUserPointsState(parseInt(savedPoints, 10));
     if (savedRole) setUserRoleState(savedRole);
     if (savedUser) setCurrentUserState(savedUser);
+    // Restore a role-appropriate start screen so reloads don't dump non-youth
+    // roles onto the (youth) Home screen. A URL ?screen=... override still wins
+    // because it is applied after this effect.
+    if (savedRole) {
+      setActiveScreenState(
+        savedRole === "admin" ? "admin"
+        : savedRole === "parent" ? "parent"
+        : savedRole === "psychologist" ? "psychological"
+        : "home"
+      );
+    }
     if (savedGrades) setStudentGradesState(savedGrades);
     if (savedMoodLogs) setMoodLogsState(savedMoodLogs);
     if (savedLevels) setStudentLevelsState(savedLevels);
