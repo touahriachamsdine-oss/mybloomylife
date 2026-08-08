@@ -41,6 +41,8 @@ export const BLOOM_KEYS = {
   helpRequests: "bloom_help_requests",
   dailyChallenges: "bloom_daily_challenges",
   studentAssignments: "bloom_student_assignments",
+  activeTerm: "bloom_active_term",
+  trimesterGrades: "bloom_trimester_grades",
   storageVersion: "bloom_storage_version",
 } as const;
 

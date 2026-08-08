@@ -72,6 +72,12 @@ export interface StudentGrades {
   [key: string]: number;
 }
 
+// Algerian school year is split into three trimesters (الثلاثيات).
+export type TermId = "T1" | "T2" | "T3";
+export const ALL_TERMS: TermId[] = ["T1", "T2", "T3"];
+// Per-student, per-trimester grade books: student -> { T1: grades, T2: grades, T3: grades }
+export type TrimesterGradesMap = Record<string, Partial<Record<TermId, StudentGrades>>>;
+
 export interface MoodLog {
   id: string;
   student: string;
@@ -335,6 +341,13 @@ export interface BloomContextType {
   // Only those users (plus the student and the admin) can view the student's data.
   studentAssignments: Record<string, StudentAssignment>;
   assignStudentRoles: (studentName: string, assignments: StudentAssignment) => void;
+
+  // Trimester (semester) grading system
+  activeTerm: TermId;
+  setActiveTerm: (term: TermId) => void;
+  trimesterGrades: TrimesterGradesMap;
+  updateTermGrade: (student: string, term: TermId, subject: string, value: number) => void;
+  getTermGrades: (student: string, term: TermId) => StudentGrades;
 
   // Mood history logs
   moodLogs: MoodLog[];
@@ -613,6 +626,12 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     bloomGetJson<Record<string, StudentAssignment>>(BLOOM_KEYS.studentAssignments, {})
   );
 
+  // Trimester grading: current term + per-term grade books.
+  const [activeTerm, setActiveTermState] = useState<TermId>(() => (bloomGetRaw(BLOOM_KEYS.activeTerm) as TermId) || "T1");
+  const [trimesterGrades, setTrimesterGradesState] = useState<TrimesterGradesMap>(() =>
+    bloomGetJson<TrimesterGradesMap>(BLOOM_KEYS.trimesterGrades, {})
+  );
+
   // Mood logs state
   const [moodLogs, setMoodLogsState] = useState<MoodLog[]>([
     { id: "1", student: "Sara", mood: "mood_happy", timestamp: "10:30 AM" },
@@ -800,6 +819,10 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedLinkCodes) setFamilyLinkCodes(savedLinkCodes);
     const savedAssignments = bloomGetJson<Record<string, StudentAssignment> | null>(BLOOM_KEYS.studentAssignments, null);
     if (savedAssignments) setStudentAssignmentsState(savedAssignments);
+    const savedTerm = bloomGetRaw(BLOOM_KEYS.activeTerm) as TermId | null;
+    if (savedTerm) setActiveTermState(savedTerm);
+    const savedTrimGrades = bloomGetJson<TrimesterGradesMap | null>(BLOOM_KEYS.trimesterGrades, null);
+    if (savedTrimGrades) setTrimesterGradesState(savedTrimGrades);
     if (savedGpaHistory) setGpaHistoryState(savedGpaHistory);
 
     if (savedGoals) {
@@ -1177,6 +1200,25 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     bloomSetJson(BLOOM_KEYS.studentAssignments, next);
   };
 
+  const setActiveTerm = (term: TermId) => {
+    setActiveTermState(term);
+    bloomSetRaw(BLOOM_KEYS.activeTerm, term);
+  };
+
+  const getTermGrades = (student: string, term: TermId): StudentGrades =>
+    trimesterGrades[student]?.[term] || studentGrades[student] || {};
+
+  const updateTermGrade = (student: string, term: TermId, subject: string, value: number) => {
+    const book = trimesterGrades[student]?.[term] || studentGrades[student] || {};
+    const updatedTerm = { ...book, [subject]: value };
+    const next = {
+      ...trimesterGrades,
+      [student]: { ...(trimesterGrades[student] || {}), [term]: updatedTerm }
+    };
+    setTrimesterGradesState(next);
+    bloomSetJson(BLOOM_KEYS.trimesterGrades, next);
+  };
+
   const updateGuidanceNotes = (student: string, notes: string[]) => {
     const updated = { ...guidanceNotes, [student]: notes };
     setGuidanceNotesState(updated);
@@ -1422,6 +1464,11 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         linkChildAccount,
         studentAssignments,
         assignStudentRoles,
+        activeTerm,
+        setActiveTerm,
+        trimesterGrades,
+        updateTermGrade,
+        getTermGrades,
         moodLogs,
         addMoodLog,
         guidanceNotes,

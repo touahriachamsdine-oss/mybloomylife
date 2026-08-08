@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useBloom, AppLanguage, AlgerianCycle, StudentGrades } from "@/context/BloomContext";
+import { useBloom, AppLanguage, AlgerianCycle, StudentGrades, TermId, ALL_TERMS } from "@/context/BloomContext";
 import { TrendingUp, Gamepad, Heart, Plus, Check, X, Award, Sparkles, Shield, ChevronRight, Activity, Users } from "lucide-react";
 
 function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[]) => string }) {
@@ -18,7 +18,11 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
     registeredUsers,
     deleteRegisteredUser,
     studentAssignments,
-    assignStudentRoles
+    assignStudentRoles,
+    activeTerm,
+    setActiveTerm,
+    trimesterGrades,
+    updateTermGrade
   } = useBloom();
 
   // Admin sub-tab state
@@ -144,8 +148,34 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
     const val = parseFloat(editGrade[subject] || "");
     if (isNaN(val) || val < 0 || val > 20) { setGradeMsg(t("admin_grade_range")); return; }
     updateGrade(selectedStudent, subject, val);
+    updateTermGrade(selectedStudent, activeTerm, subject, val);
     setEditGrade(prev => { const n = { ...prev }; delete n[subject]; return n; });
     setGradeMsg(t("admin_grade_updated"));
+    setTimeout(() => setGradeMsg(null), 2500);
+  };
+
+  // Trimester helpers
+  const termBook = (term: TermId): StudentGrades => trimesterGrades[selectedStudent]?.[term] || studentGrades[selectedStudent] || {};
+  const avgOf = (grades: StudentGrades): number | null => {
+    const vals = Object.values(grades).filter(v => typeof v === "number");
+    return vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
+  };
+  const termAvgs: Record<TermId, number | null> = {
+    T1: avgOf(termBook("T1")),
+    T2: avgOf(termBook("T2")),
+    T3: avgOf(termBook("T3"))
+  };
+  const prevTermIndex = ALL_TERMS.indexOf(activeTerm) - 1;
+  const prevTerm = prevTermIndex >= 0 ? ALL_TERMS[prevTermIndex] : null;
+  const canCopyPrev = prevTerm !== null && Object.keys(termBook(prevTerm)).length > 0;
+  const copyPreviousTerm = () => {
+    if (!prevTerm) return;
+    const prev = termBook(prevTerm);
+    Object.entries(prev).forEach(([subj, val]) => {
+      updateGrade(selectedStudent, subj, val);
+      updateTermGrade(selectedStudent, activeTerm, subj, val);
+    });
+    setGradeMsg(t("admin_term_copied"));
     setTimeout(() => setGradeMsg(null), 2500);
   };
 
@@ -331,19 +361,58 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
             )}
           </div>
 
-          {/* Grades Editor */}
+          {/* Grades Editor (per trimester) */}
           <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
             <h3 className="font-black text-sm text-text-primary flex items-center gap-2">
               <Award size={14} className="text-amber-400" />
               {t("admin_academic_grades")}
             </h3>
+
+            {/* Trimester switcher */}
+            <div className="flex gap-1.5">
+              {ALL_TERMS.map(term => (
+                <button
+                  key={term}
+                  onClick={() => setActiveTerm(term)}
+                  className={`flex-1 px-2 py-1.5 rounded-xl text-[10px] font-black transition-all ${
+                    activeTerm === term
+                      ? "bg-primary text-white shadow-sm"
+                      : "bg-border-custom/20 text-text-secondary hover:bg-border-custom/40"
+                  }`}
+                >
+                  {t(`term_${term}`)}
+                </button>
+              ))}
+            </div>
+
+            {/* Term averages strip */}
+            <div className="flex gap-1.5">
+              {ALL_TERMS.map(term => (
+                <div key={term} className={`flex-1 p-2 rounded-xl text-center border ${term === activeTerm ? "border-primary/40 bg-primary/5" : "border-border-custom/40 bg-border-custom/10"}`}>
+                  <div className="text-[9px] font-black text-text-secondary">{t(`term_${term}`)}</div>
+                  <div className={`text-xs font-black ${termAvgs[term] !== null && termAvgs[term]! >= 10 ? "text-green-600" : "text-red-500"}`}>
+                    {termAvgs[term] !== null ? termAvgs[term] : "—"}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {canCopyPrev && (
+              <button
+                onClick={copyPreviousTerm}
+                className="text-[10px] font-black text-primary bg-primary/10 hover:bg-primary/20 rounded-xl px-3 py-2 transition-all w-fit"
+              >
+                {t("admin_term_copy_prev")}
+              </button>
+            )}
+
             {gradeMsg && (
               <div className={`text-[10px] font-black p-2 rounded-xl text-center ${gradeMsg.startsWith("✓") ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "bg-red-100 text-red-700"}`}>
                 {gradeMsg}
               </div>
             )}
             <div className="flex flex-col gap-2">
-              {Object.entries(studentGrade).map(([subj, grade]) => (
+              {Object.entries(termBook(activeTerm)).map(([subj, grade]) => (
                 <div key={subj} className="flex items-center gap-2">
                   <div className="flex-1">
                     <div className="text-[10px] font-black text-text-secondary truncate">{t(subj)}</div>
