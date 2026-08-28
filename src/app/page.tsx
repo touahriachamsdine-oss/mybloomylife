@@ -105,7 +105,7 @@ function useScreenRouter() {
       skipSyncRef.current = true;
       setActiveScreen(urlScreen);
     }
-  }, [urlScreen, activeScreen, setActiveScreen]);
+  }, [urlScreen, setActiveScreen]);
 
   // state -> URL (user navigation)
   useEffect(() => {
