@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useBloom, ParentAlert, StudentGrades, getKidDailyLimitMs } from "@/context/BloomContext";
+import { useBloom, ParentAlert, StudentGrades, getKidDailyLimitMs, ALL_TERMS, TermId } from "@/context/BloomContext";
 import { useTeacherData } from "@/context/teacher";
 import { formatKidTime } from "@/lib/format";
 import { createCredential, verifyPassword, StoredCredential } from "@/lib/auth";
@@ -23,8 +23,8 @@ function ParentScreen({
   kidRemainingMs: number;
 }) {
   const teacherData = useTeacherData();
-  const [parentView, setParentView] = useState<"overview" | "attendance" | "goals" | "messages" | "reports">("overview");
-  const { studentGrades, linkChildAccount, linkedChildren, familyLinkCodes, studentLevels, currentUser, userPoints, gpaHistory, recordGpaSnapshot, goals, addGoal, deleteGoal, parentMessages, sendParentMessage, markMessageRead, guidanceNotes, moodLogs, studentAssignments } = useBloom();
+  const [parentView, setParentView] = useState<"overview" | "monitoring" | "attendance" | "goals" | "messages" | "reports">("overview");
+  const { studentGrades, linkChildAccount, linkedChildren, familyLinkCodes, studentLevels, currentUser, userPoints, gpaHistory, recordGpaSnapshot, goals, addGoal, deleteGoal, parentMessages, sendParentMessage, markMessageRead, guidanceNotes, moodLogs, studentAssignments, behaviorNotes, getBehaviorForStudent, schedule, getScheduleForDay, studyPlan, priorityTasks, dailyChallenges, challengeStreak, challengeBestStreak, trimesterGrades, getTermGrades, learningEntries, gratitudeEntries } = useBloom();
   const parentEmail = currentUser?.email ?? "";
   // Children visible to this parent: admin-assigned ones + any linked by code.
   const assignedChildren = Object.entries(studentAssignments)
@@ -389,6 +389,7 @@ function ParentScreen({
       <div className="flex flex-wrap gap-1.5">
         {([
           ["overview", "parent_overview"],
+          ["monitoring", "parent_monitoring"],
           ["attendance", "parent_attendance"],
           ["goals", "parent_goals_title"],
           ["messages", "parent_messages_title"],
@@ -401,7 +402,163 @@ function ParentScreen({
         ))}
       </div>
 
-      {parentView === "attendance" ? (
+      {parentView === "monitoring" ? (
+        <div className="flex flex-col gap-4">
+          {/* Daily routine streak */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span className="bg-primary/10 text-primary p-2 rounded-xl">🔥</span>
+              <div>
+                <h3 className="font-black text-sm text-text-primary">{t("parent_routine_streak")}</h3>
+                <p className="text-[9px] text-text-secondary uppercase tracking-wider">{t("parent_monitoring")}</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-1 p-3 rounded-2xl bg-gradient-to-br from-primary/10 to-amber-400/10 border border-primary/20 flex flex-col items-center">
+                <span className="text-2xl font-black text-primary">{challengeStreak}</span>
+                <span className="text-[9px] font-bold text-text-secondary">{t("parent_streak_days", String(challengeStreak))}</span>
+              </div>
+              <div className="flex-1 p-3 rounded-2xl bg-border-custom/10 border border-border-custom flex flex-col items-center">
+                <span className="text-2xl font-black text-text-primary">{challengeBestStreak}</span>
+                <span className="text-[9px] font-bold text-text-secondary">Best</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Learning journal */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
+            <h3 className="font-black text-sm text-text-primary">{t("parent_learning_journal")}</h3>
+            {learningEntries.length === 0 ? (
+              <p className="text-xs text-text-secondary">{t("parent_no_learning")}</p>
+            ) : [...learningEntries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 6).map((e) => (
+              <div key={e.id} className="p-3 rounded-2xl bg-border-custom/10 border border-border-custom flex flex-col gap-1">
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-xs font-black text-text-primary">{e.emoji} {t(e.subject)}</span>
+                  <span className="text-[9px] text-text-secondary">{e.date}</span>
+                </div>
+                <p className="text-[11px] text-text-secondary leading-relaxed">{e.text}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Behavior notes */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
+            <h3 className="font-black text-sm text-text-primary">{t("parent_behavior_notes")}</h3>
+            {(() => {
+              const notes = getBehaviorForStudent(selectedChild).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+              if (notes.length === 0) return <p className="text-xs text-text-secondary">{t("parent_no_behavior")}</p>;
+              return notes.slice(0, 8).map((n) => (
+                <div key={n.id} className={`p-3 rounded-2xl border flex flex-col gap-1 ${
+                  n.type === "positive" ? "border-green-500/30 bg-green-500/5"
+                  : n.type === "negative" ? "border-red-500/30 bg-red-500/5"
+                  : "border-border-custom bg-border-custom/10"
+                }`}>
+                  <div className="flex justify-between items-center gap-2">
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-md ${
+                      n.type === "positive" ? "bg-green-500/15 text-green-600"
+                      : n.type === "negative" ? "bg-red-500/15 text-red-500"
+                      : "bg-border-custom/60 text-text-secondary"
+                    }`}>{t(n.type === "positive" ? "parent_behavior_positive" : n.type === "negative" ? "parent_behavior_negative" : "parent_behavior_general")}</span>
+                    <span className="text-[9px] text-text-secondary">{n.date}</span>
+                  </div>
+                  <p className="text-xs text-text-primary leading-relaxed">{n.note}</p>
+                </div>
+              ));
+            })()}
+          </div>
+
+          {/* Study plan & homework */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <h3 className="font-black text-sm text-text-primary">{t("parent_study_homework")}</h3>
+            {studyPlan.length === 0 && priorityTasks.length === 0 ? (
+              <p className="text-xs text-text-secondary">{t("parent_no_study")}</p>
+            ) : (
+              <>
+                {studyPlan.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[9px] font-black text-text-secondary uppercase tracking-wider">{t("parent_weekly_schedule")}</span>
+                    {studyPlan.map((s) => (
+                      <div key={s.id} className={`flex items-center justify-between text-xs p-2.5 rounded-xl border ${s.done ? "border-green-500/30 bg-green-500/5" : "border-border-custom bg-border-custom/10"}`}>
+                        <span className={`font-bold ${s.done ? "text-text-secondary line-through" : "text-text-primary"}`}>{t(s.subject)} · {s.time}</span>
+                        <span className={`shrink-0 text-sm ${s.done ? "text-green-600" : "text-text-secondary"}`}>{s.done ? "✓" : "○"}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {priorityTasks.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[9px] font-black text-text-secondary uppercase tracking-wider">{t("parent_priority_tasks")}</span>
+                    {priorityTasks.map((p) => (
+                      <div key={p.id} className={`flex items-center justify-between text-xs p-2.5 rounded-xl border ${p.done ? "border-green-500/30 bg-green-500/5" : "border-border-custom bg-border-custom/10"}`}>
+                        <span className={`font-bold truncate ${p.done ? "text-text-secondary line-through" : "text-text-primary"}`}>{p.title}</span>
+                        <span className={`shrink-0 text-sm ${p.done ? "text-green-600" : "text-text-secondary"}`}>{p.done ? "✓" : "○"}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Weekly schedule */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <h3 className="font-black text-sm text-text-primary">{t("parent_weekly_schedule")}</h3>
+            {[0, 1, 2, 3, 4].map((day) => {
+              const entries = getScheduleForDay(day);
+              if (entries.length === 0) return null;
+              return (
+                <div key={day} className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-black text-primary uppercase tracking-wider">{t(`parent_weekday_${day}`)}</span>
+                  <div className="flex flex-col gap-1">
+                    {entries.map((e) => (
+                      <div key={e.id} className="flex items-center justify-between text-xs p-2 rounded-xl bg-border-custom/10 border border-border-custom/50">
+                        <span className="font-bold text-text-primary">{t(e.subject)}</span>
+                        <span className="font-black text-text-secondary shrink-0">{e.startTime}–{e.endTime}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {getScheduleForDay(0).length === 0 && getScheduleForDay(1).length === 0 && getScheduleForDay(2).length === 0 && getScheduleForDay(3).length === 0 && getScheduleForDay(4).length === 0 && (
+              <p className="text-xs text-text-secondary">{t("parent_no_schedule")}</p>
+            )}
+          </div>
+
+          {/* Trimester report card */}
+          <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+            <h3 className="font-black text-sm text-text-primary">{t("parent_trimester_report")}</h3>
+            {ALL_TERMS.map((term: TermId) => {
+              const termGrades = getTermGrades(selectedChild, term);
+              const keys = Object.keys(termGrades);
+              if (keys.length === 0) return null;
+              const avg = parseFloat((keys.reduce((a, k) => a + termGrades[k], 0) / keys.length).toFixed(2));
+              return (
+                <div key={term} className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black text-primary uppercase tracking-wider">{t(`term_${term}`)}</span>
+                    <span className={`text-xs font-black ${avg >= 10 ? "text-emerald-500" : "text-red-500"}`}>{avg}/20</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {Object.entries(termGrades).map(([subject, grade]) => (
+                      <div key={subject} className="flex items-center gap-2 text-xs">
+                        <span className="font-bold text-text-primary flex-1 truncate">{t(subject)}</span>
+                        <div className="flex-1 bg-border-custom/50 rounded-full h-1.5 overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${(grade / 20) * 100}%`, background: grade >= 10 ? "var(--color-primary)" : "#ef4444" }} />
+                        </div>
+                        <span className={`font-black w-9 text-right ${grade >= 10 ? "text-emerald-500" : "text-red-500"}`}>{grade}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {ALL_TERMS.every((term: TermId) => Object.keys(getTermGrades(selectedChild, term)).length === 0) && (
+              <p className="text-xs text-text-secondary">{t("parent_no_data")}</p>
+            )}
+          </div>
+        </div>
+      ) : parentView === "attendance" ? (
         <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
           <h3 className="font-black text-sm text-text-primary">{t("parent_attendance")}</h3>
           {(() => {
