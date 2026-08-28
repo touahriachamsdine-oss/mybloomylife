@@ -99,22 +99,33 @@ function useScreenRouter() {
   const urlScreen = searchParams.get("screen");
   const skipSyncRef = useRef(false);
 
-  // URL -> state (mount, popstate, programmatic replace)
-  useEffect(() => {
-    if (urlScreen && SCREEN_ROUTES.includes(urlScreen) && urlScreen !== activeScreen) {
-      skipSyncRef.current = true;
-      setActiveScreen(urlScreen);
-    }
-  }, [urlScreen, setActiveScreen]);
+  // Keep the latest callbacks/values in refs so the effects below only react
+  // to the primitive values they actually care about (activeScreen / urlScreen).
+  // `setActiveScreen` from context is recreated on every provider render, so
+  // depending on it directly would re-fire the URL->state effect constantly and
+  // (while the URL is stale) revert navigation back to the previous screen.
+  const activeRef = useRef(activeScreen);
+  activeRef.current = activeScreen;
+  const setActiveRef = useRef(setActiveScreen);
+  setActiveRef.current = setActiveScreen;
 
-  // state -> URL (user navigation)
+  // state -> URL (user navigation). Fires only when activeScreen truly changes.
   useEffect(() => {
     if (skipSyncRef.current) {
       skipSyncRef.current = false;
       return;
     }
-    router.replace(`?screen=${activeScreen}`, { scroll: false });
+    router.replace(`?screen=${activeRef.current}`, { scroll: false });
   }, [activeScreen, router]);
+
+  // URL -> state (mount, popstate, programmatic replace). Fires only when the
+  // ?screen= param changes; uses refs so no dependence on unstable identities.
+  useEffect(() => {
+    if (urlScreen && SCREEN_ROUTES.includes(urlScreen) && urlScreen !== activeRef.current) {
+      skipSyncRef.current = true;
+      setActiveRef.current(urlScreen);
+    }
+  }, [urlScreen]);
 }
 
 
@@ -455,16 +466,7 @@ function App() {
                         ];
                       } else if (userRole === "parent") {
                         items = [
-                          { id: "parent", label: t("nav_parent"), icon: <Shield size={18} /> },
-                          { id: "home", label: t("nav_home"), icon: <HomeIcon size={18} /> },
-                          { id: "academic", label: t("nav_academic"), icon: <TrendingUp size={18} /> },
-                          { id: "games", label: t("nav_games"), icon: <Gamepad size={18} /> },
-                          { id: "psychological", label: t("nav_psychological"), icon: <Heart size={18} /> },
-                          { id: "learning", label: t("nav_learning"), icon: <BookOpen size={18} /> },
-                          { id: "gratitude", label: t("nav_gratitude"), icon: <Sparkles size={18} /> },
-                          { id: "goals", label: t("nav_goals"), icon: <ListChecks size={18} /> },
-                          { id: "planner", label: t("nav_planner"), icon: <Clock size={18} /> },
-                          { id: "portfolio", label: t("nav_portfolio"), icon: <Award size={18} /> }
+                          { id: "parent", label: t("nav_parent"), icon: <Shield size={18} /> }
                         ];
                       } else if (userRole === "psychologist") {
                         items = [
