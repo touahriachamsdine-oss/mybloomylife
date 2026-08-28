@@ -81,7 +81,10 @@ import {
   Zap,
   Users,
   MessageSquare,
-  BarChart3
+  BarChart3,
+  Target,
+  CalendarCheck,
+  FileText
 } from "lucide-react";
 
 // Student-experience screens, exposed to the parent role (play-time limited).
@@ -206,6 +209,8 @@ function App() {
   const [teacherView, setTeacherView] = useState("dashboard");
   const [adminView, setAdminView] = useState<"dashboard" | "school">("dashboard");
   const teacherData = useTeacherData();
+  // Requested Parent Dashboard sub-view (driven from the sidebar).
+  const [requestedParentView, setRequestedParentView] = useState<string | null>(null);
 
   // local notification state for parents messages
   const [activeSupportMessage, setActiveSupportMessage] = useState<string | null>(null);
@@ -465,9 +470,14 @@ function App() {
                           { id: "portfolio", label: t("nav_portfolio"), icon: <Award size={18} /> }
                         ];
                       } else if (userRole === "parent") {
-                        items = [
-                          { id: "parent", label: t("nav_parent"), icon: <Shield size={18} /> }
-                        ];
+                        items = ([
+                          { id: "parent", label: t("nav_parent"), icon: <Shield size={18} />, meta: "overview" },
+                          { id: "parent", label: t("parent_monitoring"), icon: <Activity size={18} />, meta: "monitoring" },
+                          { id: "parent", label: t("parent_attendance"), icon: <CalendarCheck size={18} />, meta: "attendance" },
+                          { id: "parent", label: t("parent_goals_title"), icon: <Target size={18} />, meta: "goals" },
+                          { id: "parent", label: t("parent_messages_title"), icon: <MessageSquare size={18} />, meta: "messages" },
+                          { id: "parent", label: t("parent_reports_title"), icon: <FileText size={18} />, meta: "reports" },
+                        ] as any);
                       } else if (userRole === "psychologist") {
                         items = [
                           { id: "psychological", label: t("nav_psychological"), icon: <Heart size={18} /> }
@@ -484,7 +494,9 @@ function App() {
                         const isActive =
                           userRole === "admin" && meta
                             ? activeScreen === item.id && ((meta === "school" && adminView === "school") || (meta !== "school" && adminView === "dashboard"))
-                            : activeScreen === item.id && (!meta || meta === teacherView);
+                            : userRole === "parent" && meta
+                              ? activeScreen === item.id && requestedParentView === meta
+                              : activeScreen === item.id && (!meta || meta === teacherView);
                         return (
                           <button
                             key={item.id + ((item as any).meta || "")}
@@ -494,6 +506,8 @@ function App() {
                                 if (userRole === "admin") {
                                   setAdminView(meta === "school" ? "school" : "dashboard");
                                   if (meta === "school") setTeacherView("dashboard");
+                                } else if (userRole === "parent") {
+                                  setRequestedParentView(meta as string);
                                 } else {
                                   setTeacherView(meta);
                                 }
@@ -638,6 +652,7 @@ function App() {
                   parentAlerts={parentAlerts}
                   sendSupportMessage={sendSupportMessage}
                   kidRemainingMs={kidRemainingMs}
+                  requestedView={requestedParentView}
                 />
               )}
                 </>

@@ -13,7 +13,8 @@ function ParentScreen({
   setParentAuthenticated,
   parentAlerts,
   sendSupportMessage,
-  kidRemainingMs
+  kidRemainingMs,
+  requestedView
 }: {
   t: (k: string, ...a: (string | number)[]) => string;
   parentAuthenticated: boolean;
@@ -21,9 +22,18 @@ function ParentScreen({
   parentAlerts: ParentAlert[];
   sendSupportMessage: (to: string, msg: string) => void;
   kidRemainingMs: number;
+  requestedView?: string | null;
 }) {
   const teacherData = useTeacherData();
   const [parentView, setParentView] = useState<"overview" | "monitoring" | "attendance" | "goals" | "messages" | "reports">("overview");
+
+  // Sync the visible sub-view when the parent picks one from the sidebar.
+  useEffect(() => {
+    const valid = ["overview", "monitoring", "attendance", "goals", "messages", "reports"] as const;
+    if (requestedView && (valid as readonly string[]).includes(requestedView)) {
+      setParentView(requestedView as typeof parentView);
+    }
+  }, [requestedView]);
   const { studentGrades, linkChildAccount, linkedChildren, familyLinkCodes, studentLevels, currentUser, userPoints, gpaHistory, recordGpaSnapshot, goals, addGoal, deleteGoal, parentMessages, sendParentMessage, markMessageRead, guidanceNotes, moodLogs, studentAssignments, behaviorNotes, getBehaviorForStudent, schedule, getScheduleForDay, studyPlan, priorityTasks, dailyChallenges, challengeStreak, challengeBestStreak, trimesterGrades, getTermGrades, learningEntries, gratitudeEntries } = useBloom();
   const parentEmail = currentUser?.email ?? "";
   // Children visible to this parent: admin-assigned ones + any linked by code.
