@@ -23,7 +23,7 @@ function ParentScreen({
   kidRemainingMs: number;
 }) {
   const teacherData = useTeacherData();
-  const [parentView, setParentView] = useState<"overview" | "attendance" | "behavior" | "goals" | "messages" | "reports">("overview");
+  const [parentView, setParentView] = useState<"overview" | "attendance" | "goals" | "messages" | "reports">("overview");
   const { studentGrades, linkChildAccount, linkedChildren, familyLinkCodes, studentLevels, currentUser, userPoints, gpaHistory, recordGpaSnapshot, goals, addGoal, deleteGoal, parentMessages, sendParentMessage, markMessageRead, guidanceNotes, moodLogs, studentAssignments } = useBloom();
   const parentEmail = currentUser?.email ?? "";
   // Children visible to this parent: admin-assigned ones + any linked by code.
@@ -390,7 +390,6 @@ function ParentScreen({
         {([
           ["overview", "parent_overview"],
           ["attendance", "parent_attendance"],
-          ["behavior", "parent_behavior"],
           ["goals", "parent_goals_title"],
           ["messages", "parent_messages_title"],
           ["reports", "parent_reports_title"]
@@ -412,23 +411,6 @@ function ParentScreen({
               <div key={`${r.date}-${r.status}`} className="flex items-center justify-between text-xs py-1">
                 <span className="font-bold text-text-primary">{r.date}</span>
                 <span className={`font-black ${r.status === "present" ? "text-green-600" : r.status === "absent" ? "text-red-500" : r.status === "excused" ? "text-amber-600" : "text-blue-600"}`}>{t(r.status)}</span>
-              </div>
-            ));
-          })()}
-        </div>
-      ) : parentView === "behavior" ? (
-        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
-          <h3 className="font-black text-sm text-text-primary">{t("parent_behavior")}</h3>
-          {(() => {
-            const notes = teacherData.behaviorNotes.filter(n => n.studentName === selectedChild);
-            if (notes.length === 0) return <p className="text-xs text-text-secondary">{t("parent_no_data")}</p>;
-            return notes.map(n => (
-              <div key={n.id} className={`p-2 rounded-xl border text-xs ${n.type === "positive" ? "bg-green-500/5 border-green-500/20" : n.type === "negative" ? "bg-red-500/5 border-red-500/20" : "bg-blue-500/5 border-blue-500/20"}`}>
-                <div className="flex items-center gap-1.5">
-                  <span className={`font-black ${n.type === "positive" ? "text-green-600" : n.type === "negative" ? "text-red-500" : "text-blue-600"}`}>{t(n.type)}</span>
-                  <span className="text-text-secondary text-[9px]">{n.date}</span>
-                </div>
-                <p className="text-text-primary font-medium mt-0.5">{n.note}</p>
               </div>
             ));
           })()}
@@ -623,6 +605,21 @@ function ParentScreen({
         </div>
       ) : (
       <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-4">
+        {/* Today Snapshot */}
+        <div className="p-3 rounded-2xl bg-gradient-to-r from-primary/5 to-amber-400/5 border border-border-custom/50 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">📊</span>
+            <span className="font-black text-xs text-text-primary uppercase tracking-wide">{t("parent_today_snapshot")}</span>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[10px]">
+            <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-md font-black">GPA {gpa}</span>
+            <span className="bg-amber-400/10 text-amber-700 px-2 py-0.5 rounded-md font-black">Avg {Math.round((Object.values(studentGrades[selectedChild]||{}).reduce((a,b)=>a+b,0)/Math.max(1,Object.keys(studentGrades[selectedChild]||{}).length))*10)/10}</span>
+            <span className="bg-green-500/10 text-green-700 px-2 py-0.5 rounded-md font-black">Points {userPoints}</span>
+            <span className="bg-indigo-400/10 text-indigo-700 px-2 py-0.5 rounded-md font-black">Notes {notes.length}</span>
+            <span className="bg-red-400/10 text-red-700 px-2 py-0.5 rounded-md font-black">Goals {childGoals.length}</span>
+          </div>
+        </div>
+
         {/* Child level metadata */}
         <div className="flex justify-between items-center border-b border-border-custom pb-3">
           <div className="flex items-center gap-2">
