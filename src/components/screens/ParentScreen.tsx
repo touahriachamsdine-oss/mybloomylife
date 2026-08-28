@@ -420,7 +420,7 @@ function ParentScreen({
               </div>
               <div className="flex-1 p-3 rounded-2xl bg-border-custom/10 border border-border-custom flex flex-col items-center">
                 <span className="text-2xl font-black text-text-primary">{challengeBestStreak}</span>
-                <span className="text-[9px] font-bold text-text-secondary">Best</span>
+                <span className="text-[9px] font-bold text-text-secondary">{t("parent_streak_best")}</span>
               </div>
             </div>
           </div>
