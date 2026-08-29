@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useBloom, AppLanguage, AlgerianCycle, StudentGrades, TermId, ALL_TERMS } from "@/context/BloomContext";
+import { useBloom, AppLanguage, AlgerianCycle, StudentGrades, TermId, ALL_TERMS, RegisteredUser, AlgerianLevel, StudentAssignment, MoodLog } from "@/context/BloomContext";
 import { TrendingUp, Gamepad, Heart, Plus, Check, X, Award, Sparkles, Shield, ChevronRight, Activity, Users } from "lucide-react";
 
 function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[]) => string }) {
@@ -22,11 +22,14 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
     activeTerm,
     setActiveTerm,
     trimesterGrades,
-    updateTermGrade
+    updateTermGrade,
+    createStudentAccount,
+    regenerateFamilyCode,
+    familyLinkCodes
   } = useBloom();
 
   // Admin sub-tab state
-  const [activeTab, setActiveTab] = useState<"levels" | "games" | "students" | "users">("students");
+  const [activeTab, setActiveTab] = useState<"overview" | "levels" | "games" | "students" | "users">("overview");
 
   // ── Levels form state ──
   const [levelCycle, setLevelCycle] = useState<AlgerianCycle>("moyen");
@@ -53,6 +56,27 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
   const [selectedStudent, setSelectedStudent] = useState<string>("Sara");
   const [editGrade, setEditGrade] = useState<Record<string, string>>({});
   const [gradeMsg, setGradeMsg] = useState<string | null>(null);
+  const [newStudent, setNewStudent] = useState<string>("");
+  const [newStudentMsg, setNewStudentMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const handleCreateStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newStudent.trim();
+    if (!name) return;
+    if (students.includes(name)) {
+      setNewStudentMsg({ ok: false, text: t("admin_student_exists") });
+      return;
+    }
+    const res = createStudentAccount(name);
+    if (res.success) {
+      setSelectedStudent(name);
+      setNewStudent("");
+      setNewStudentMsg({ ok: true, text: `${t("admin_student_created")} · ${t("admin_family_code")}: ${res.code}` });
+    } else {
+      setNewStudentMsg({ ok: false, text: t("admin_student_error") });
+    }
+    setTimeout(() => setNewStudentMsg(null), 6000);
+  };
 
   // Synchronize selectedStudent with students updates
   useEffect(() => {
@@ -228,7 +252,7 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
     );
   };
 
-  const tabBtn = (id: "levels" | "games" | "students" | "users", label: string, icon: React.ReactNode) => (
+  const tabBtn = (id: "overview" | "levels" | "games" | "students" | "users", label: string, icon: React.ReactNode) => (
     <button
       key={id}
       onClick={() => setActiveTab(id)}
@@ -261,15 +285,59 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
 
       {/* Sub-tabs */}
       <div className="flex gap-2 p-1 bg-border-custom/20 rounded-2xl">
+        {tabBtn("overview", t("admin_tab_overview"), <Shield size={14} />)}
         {tabBtn("students", t("teacher_student_list"), <Activity size={14} />)}
         {tabBtn("games", t("games_title"), <Gamepad size={14} />)}
         {tabBtn("levels", t("admin_tab_levels"), <TrendingUp size={14} />)}
         {tabBtn("users", t("admin_tab_users"), <Users size={14} />)}
       </div>
 
+      {/* ── Tab: Overview ── */}
+      {activeTab === "overview" && (
+        <OverviewTab
+          t={t}
+          registeredUsers={registeredUsers}
+          studentGrades={studentGrades}
+          studentLevels={studentLevels}
+          studentAssignments={studentAssignments}
+          moodLogs={moodLogs}
+          onOpenStudents={() => setActiveTab("students")}
+          onOpenUsers={() => setActiveTab("users")}
+        />
+      )}
+
       {/* ── Tab: Students ── */}
       {activeTab === "students" && (
         <>
+          {/* Create Student Account */}
+          <div className="p-4 rounded-3xl bg-surface border border-primary/20 shadow-xs flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span className="bg-primary/10 text-primary p-2 rounded-xl"><Plus size={16} /></span>
+              <div>
+                <h3 className="font-black text-sm text-text-primary">{t("admin_create_student_title")}</h3>
+                <p className="text-[9px] text-text-secondary">{t("admin_create_student_subtitle")}</p>
+              </div>
+            </div>
+            <form onSubmit={handleCreateStudent} className="flex gap-2">
+              <input
+                type="text"
+                value={newStudent}
+                onChange={(e) => setNewStudent(e.target.value)}
+                placeholder={t("admin_create_student_placeholder")}
+                className={inputCls}
+                required
+              />
+              <button type="submit" className="shrink-0 bg-primary text-white px-4 py-2.5 rounded-xl text-xs font-black hover:opacity-90 transition-all">
+                {t("admin_create_student_btn")}
+              </button>
+            </form>
+            {newStudentMsg && (
+              <p className={`text-[11px] font-bold px-1 ${newStudentMsg.ok ? "text-emerald-600" : "text-red-500"}`}>
+                {newStudentMsg.text}
+              </p>
+            )}
+          </div>
+
           {/* Student Selector */}
           <div className="flex gap-2 flex-wrap">
             {students.map(name => (
@@ -318,6 +386,20 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
                 </div>
               </div>
             )}
+
+            {/* Family link code */}
+            <div className="flex items-center justify-between mt-1 pt-3 border-t border-border-custom/50">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-text-secondary">{t("admin_family_code")}</span>
+                <span className="text-sm font-black text-primary font-mono tracking-widest">{familyLinkCodes[selectedStudent] || "—"}</span>
+              </div>
+              <button
+                onClick={() => regenerateFamilyCode(selectedStudent)}
+                className="text-[9px] font-black text-primary underline"
+              >
+                {t("admin_regenerate_code")}
+              </button>
+            </div>
           </div>
 
           {/* Access Control: who may see this student's data */}
@@ -738,6 +820,113 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
         </div>
       )}
     </>
+  );
+}
+
+
+/* ==========================================================================
+   ADMIN OVERVIEW TAB
+   ========================================================================== */
+function OverviewTab({
+  t,
+  registeredUsers,
+  studentGrades,
+  studentLevels,
+  studentAssignments,
+  moodLogs,
+  onOpenStudents,
+  onOpenUsers
+}: {
+  t: (k: string, ...a: (string | number)[]) => string;
+  registeredUsers: RegisteredUser[];
+  studentGrades: Record<string, StudentGrades>;
+  studentLevels: Record<string, AlgerianLevel | null>;
+  studentAssignments: Record<string, StudentAssignment>;
+  moodLogs: MoodLog[];
+  onOpenStudents: () => void;
+  onOpenUsers: () => void;
+}) {
+  const students = Object.keys(studentGrades);
+  const teachers = registeredUsers.filter(u => u.role === "admin").length;
+  const parents = registeredUsers.filter(u => u.role === "parent").length;
+  const psychologists = registeredUsers.filter(u => u.role === "psychologist").length;
+  const youth = registeredUsers.filter(u => u.role === "youth").length;
+
+  const assignedWithParent = Object.values(studentAssignments).filter(a => (a.parents || []).length > 0).length;
+  const assignedWithPsych = Object.values(studentAssignments).filter(a => (a.psychologists || []).length > 0).length;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayMoods = moodLogs.filter(m => (m.date || m.timestamp.slice(0, 10)) === today);
+  const recentMoods = [...moodLogs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 6);
+  const negativeMoods = recentMoods.filter(m => ["mood_sad", "mood_anxious", "mood_angry"].includes(m.mood));
+
+  const stat = (val: string | number, label: string, color: string) => (
+    <div className="flex flex-col items-center p-3 rounded-2xl bg-surface border border-border-custom shadow-xs">
+      <span className={`text-xl font-black ${color}`}>{val}</span>
+      <span className="text-[9px] font-bold text-text-secondary text-center mt-0.5">{label}</span>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Counts */}
+      <div className="grid grid-cols-2 gap-2">
+        {stat(students.length, t("admin_stat_students"), "text-primary")}
+        {stat(parents, t("admin_stat_parents"), "text-emerald-500")}
+        {stat(psychologists, t("role_psychologist"), "text-amber-600")}
+        {stat(teachers, t("role_admin"), "text-indigo-500")}
+      </div>
+
+      {/* Grade snapshot */}
+      <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
+        <h3 className="font-black text-xs text-text-primary uppercase tracking-wide">{t("admin_section_grades")}</h3>
+        {students.length === 0 ? (
+          <p className="text-xs text-text-secondary">{t("parent_no_data")}</p>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {students.map(name => {
+              const g = studentGrades[name] || {};
+              const keys = Object.keys(g);
+              const avg = keys.length ? (keys.reduce((a, k) => a + g[k], 0) / keys.length) : 0;
+              return (
+                <div key={name} className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-text-primary truncate">{name}</span>
+                  <span className={`font-black ${avg >= 10 ? "text-emerald-500" : "text-red-500"}`}>{keys.length ? avg.toFixed(1) : "—"}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <button onClick={onOpenStudents} className="mt-1 self-start text-[10px] font-black text-primary underline">{t("admin_open_students")}</button>
+      </div>
+
+      {/* Wellbeing: recent mood signals */}
+      <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
+        <h3 className="font-black text-xs text-text-primary uppercase tracking-wide">{t("admin_wellbeing")}</h3>
+        {negativeMoods.length > 0 ? (
+          <div className="flex flex-col gap-1.5">
+            {negativeMoods.map(m => (
+              <div key={m.id} className="p-2 rounded-xl bg-red-500/5 border border-red-500/20 text-[11px] flex justify-between items-center">
+                <span className="font-bold text-text-primary">{m.student}</span>
+                <span className="text-text-secondary">{t(m.mood)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-text-secondary">{todayMoods.length ? t("admin_no_neg_mood") : t("admin_no_moods_today")}</p>
+        )}
+      </div>
+
+      {/* Access control coverage */}
+      <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
+        <h3 className="font-black text-xs text-text-primary uppercase tracking-wide">{t("admin_access_coverage")}</h3>
+        <div className="flex gap-2 text-[11px]">
+          <span className="px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 font-black">{t("admin_with_parents")}: {assignedWithParent}</span>
+          <span className="px-2 py-1 rounded-lg bg-amber-500/10 text-amber-600 font-black">{t("admin_with_psych")}: {assignedWithPsych}</span>
+        </div>
+        <button onClick={onOpenUsers} className="mt-1 self-start text-[10px] font-black text-primary underline">{t("admin_open_users")}</button>
+      </div>
+    </div>
   );
 }
 

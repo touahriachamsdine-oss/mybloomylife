@@ -144,6 +144,75 @@ const DEFAULT_SECTIONS: ClassSection[] = [
   { id: "3am_b", name: "3AM B", cycle: "moyen", year: 3, studentNames: ["Rania", "Tahar", "Nour", "Ismail", "Dalia", "Zakaria"] },
 ];
 
+// ---- Demo data seeders (for first run / empty DB so monitoring isn't blank) ----
+function isoDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+function seedDemoAttendance(students: string[]): AttendanceRecord[] {
+  const statuses: AttendanceStatus[] = ["present", "present", "present", "late", "present", "excused", "present", "present"];
+  const recs: AttendanceRecord[] = [];
+  for (let d = 1; d <= 15; d++) {
+    for (const s of students) {
+      recs.push({ date: isoDaysAgo(d), sectionId: "1am_a", studentName: s, status: statuses[(d + s.length) % statuses.length] });
+    }
+  }
+  return recs;
+}
+function seedDemoBehavior(students: string[]): BehaviorNote[] {
+  const notes: BehaviorNote[] = [];
+  const samples: [BehaviorNote["type"], string][] = [
+    ["positive", "Helped a classmate understand the lesson."],
+    ["general", "Participated well in today's activities."],
+    ["positive", "Great effort on the maths exercise."],
+    ["negative", "Was distracted during class, reminded to focus."],
+  ];
+  students.forEach((s, i) => {
+    notes.push({ id: `bh-${s}-1`, date: isoDaysAgo(3 + i), studentName: s, type: samples[i][0], note: samples[i][1], teacherName: "Teacher" });
+    notes.push({ id: `bh-${s}-2`, date: isoDaysAgo(9 + i), studentName: s, type: samples[(i + 1) % samples.length][0], note: samples[(i + 1) % samples.length][1], teacherName: "Teacher" });
+  });
+  return notes;
+}
+function seedDemoSchedule(): ScheduleEntry[] {
+  const days = [0, 1, 2, 3, 4];
+  const subjects = ["subject_math", "subject_arabic", "subject_french", "subject_science", "subject_english", "subject_physics", "subject_history_geo"];
+  const times = ["08:00", "09:00", "10:00", "11:00"];
+  const out: ScheduleEntry[] = [];
+  let id = 1;
+  days.forEach((day, di) => {
+    for (let t = 0; t < 3; t++) {
+      out.push({ id: `sch-${id++}`, day, startTime: times[t], endTime: times[t + 1], subject: subjects[(di + t) % subjects.length], sectionId: "1am_a" });
+    }
+  });
+  return out;
+}
+function seedDemoStudyPlan(): StudyPlanEntry[] {
+  const days = [0, 1, 2, 3];
+  const out: StudyPlanEntry[] = [];
+  let id = 1;
+  days.forEach((day, i) => {
+    out.push({ id: `sp-${id++}`, day, time: "17:00", subject: "subject_math", done: i % 2 === 0 });
+    out.push({ id: `sp-${id++}`, day, time: "18:00", subject: "subject_french", done: false });
+  });
+  return out;
+}
+function seedDemoPriorityTasks(): PriorityTask[] {
+  return [
+    { id: "pt-1", title: "Finish maths homework", priority: "high", done: true },
+    { id: "pt-2", title: "Revise French vocabulary", priority: "medium", done: false },
+    { id: "pt-3", title: "Prepare science project", priority: "high", done: false },
+  ];
+}
+function seedDemoTrimesters(students: string[]): TrimesterGradesMap {
+  const map: TrimesterGradesMap = {};
+  students.forEach((s) => {
+    const base = s === "Sara" ? { subject_math: 16, subject_french: 14, subject_arabic: 16, subject_english: 15 } : { subject_math: 14, subject_french: 12, subject_arabic: 15, subject_english: 13 };
+    map[s] = { T1: base, T2: Object.fromEntries(Object.entries(base).map(([k, v]) => [k, (v as number) + 0.5])), T3: Object.fromEntries(Object.entries(base).map(([k, v]) => [k, (v as number) + 1])), };
+  });
+  return map;
+}
+
 // ---- Student planner, priorities, help requests & daily challenges ----
 export type GoalPeriod = "weekly" | "monthly";
 export type TaskPriority = "high" | "medium" | "low";
@@ -290,6 +359,8 @@ export interface BloomContextType {
   updateTeacherSection: (updated: ClassSection) => void;
   addStudentToSection: (sectionId: string, name: string) => void;
   removeStudentFromSection: (sectionId: string, name: string) => void;
+  createStudentAccount: (name: string) => { success: boolean; code?: string };
+  regenerateFamilyCode: (name: string) => string;
   attendance: AttendanceRecord[];
   markAttendance: (records: Omit<AttendanceRecord, "date">[], date: string) => void;
   getAttendanceForSection: (sectionId: string, date: string) => AttendanceRecord[];
@@ -791,11 +862,16 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedCustomGames) setCustomGames(savedCustomGames);
     if (savedSections) setTeacherSections(savedSections); else { setTeacherSections(DEFAULT_SECTIONS); bloomSetJson(BLOOM_KEYS.sections, DEFAULT_SECTIONS); }
     if (savedAttendance) setAttendance(savedAttendance);
+    else { if (Object.keys(studentGrades).length) { const demoAtt = seedDemoAttendance(Object.keys(studentGrades)); setAttendance(demoAtt); bloomSetJson(BLOOM_KEYS.attendance, demoAtt); } }
     if (savedBehaviorNotes) setBehaviorNotes(savedBehaviorNotes);
+    else { if (Object.keys(studentGrades).length) { const demoBh = seedDemoBehavior(Object.keys(studentGrades)); setBehaviorNotes(demoBh); bloomSetJson(BLOOM_KEYS.behaviorNotes, demoBh); } }
     if (savedSchedule) setSchedule(savedSchedule);
+    else { const demoSch = seedDemoSchedule(); setSchedule(demoSch); bloomSetJson(BLOOM_KEYS.schedule, demoSch); }
     if (savedParentMessages) setParentMessages(savedParentMessages);
     if (savedStudyPlan) setStudyPlanState(savedStudyPlan);
+    else { const demoSp = seedDemoStudyPlan(); setStudyPlanState(demoSp); bloomSetJson(BLOOM_KEYS.studyPlan, demoSp); }
     if (savedPriorityTasks) setPriorityTasksState(savedPriorityTasks);
+    else { const demoPt = seedDemoPriorityTasks(); setPriorityTasksState(demoPt); bloomSetJson(BLOOM_KEYS.priorityTasks, demoPt); }
     if (savedHelpRequests) setHelpRequestsState(savedHelpRequests);
     if (savedDailyChallenges && savedDailyChallenges.date === new Date().toISOString().slice(0, 10)) setDailyChallengesState({ ...savedDailyChallenges, history: savedDailyChallenges.history ?? {} });
     if (savedUsers && savedUsers.length > 0) {
@@ -823,7 +899,19 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedTerm) setActiveTermState(savedTerm);
     const savedTrimGrades = bloomGetJson<TrimesterGradesMap | null>(BLOOM_KEYS.trimesterGrades, null);
     if (savedTrimGrades) setTrimesterGradesState(savedTrimGrades);
+    else { if (Object.keys(studentGrades).length) { const demoTrim = seedDemoTrimesters(Object.keys(studentGrades)); setTrimesterGradesState(demoTrim); bloomSetJson(BLOOM_KEYS.trimesterGrades, demoTrim); } }
     if (savedGpaHistory) setGpaHistoryState(savedGpaHistory);
+    else {
+      const hist: Record<string, number[]> = {};
+      Object.keys(studentGrades).forEach((name) => {
+        const g = studentGrades[name] || {};
+        const keys = Object.keys(g);
+        if (!keys.length) return;
+        const avg = keys.reduce((a, k) => a + g[k], 0) / keys.length;
+        hist[name] = [parseFloat((avg - 1).toFixed(1)), parseFloat((avg - 0.5).toFixed(1)), parseFloat(avg.toFixed(1))];
+      });
+      if (Object.keys(hist).length) { setGpaHistoryState(hist); bloomSetJson(BLOOM_KEYS.gpaHistory, hist); }
+    }
 
     if (savedGoals) {
       setGoalsState(savedGoals);
@@ -1019,6 +1107,65 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
     setTeacherSections(next);
     bloomSetJson(BLOOM_KEYS.sections, next);
+  };
+
+  // Generate a unique family link code for a student (format BLM-XXXX).
+  const genFamilyCode = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return `BLM-${code}`;
+  };
+
+  // Admin creates a student account: registers them in grades, generates a
+  // family link code parents can use to start monitoring, and adds them to the
+  // first available class section so they show up for teachers too.
+  const createStudentAccount = (name: string): { success: boolean; code?: string } => {
+    const trimmed = name.trim();
+    if (!trimmed) return { success: false };
+    const existingCodes = Object.values(familyLinkCodes);
+    let code = genFamilyCode();
+    while (existingCodes.some(c => c === code)) code = genFamilyCode();
+
+    const nextGrades = { ...studentGrades, [trimmed]: studentGrades[trimmed] || {} };
+    setStudentGradesState(nextGrades);
+    bloomSetJson(BLOOM_KEYS.studentGrades, nextGrades);
+
+    const nextCodes = { ...familyLinkCodes, [trimmed]: code };
+    setFamilyLinkCodes(nextCodes);
+    bloomSetJson(BLOOM_KEYS.familyLinkCodes, nextCodes);
+
+    // Ensure a default level exists so the student is immediately usable.
+    if (!studentLevels[trimmed]) {
+      const defaultLevel = { cycle: "moyen" as const, year: 1, label: "1AM" };
+      const nextLevels = { ...studentLevels, [trimmed]: defaultLevel };
+      setStudentLevelsState(nextLevels);
+      bloomSetJson(BLOOM_KEYS.studentLevels, nextLevels);
+    }
+
+    // Add to the first section if not already in any section.
+    if (!teacherSections.some(s => s.studentNames.includes(trimmed))) {
+      const first = teacherSections[0];
+      if (first) {
+        const next = teacherSections.map(s =>
+          s.id === first.id ? { ...s, studentNames: [...s.studentNames, trimmed] } : s
+        );
+        setTeacherSections(next);
+        bloomSetJson(BLOOM_KEYS.sections, next);
+      }
+    }
+
+    return { success: true, code };
+  };
+
+  const regenerateFamilyCode = (name: string): string => {
+    const existingCodes = Object.values(familyLinkCodes);
+    let code = genFamilyCode();
+    while (existingCodes.some(c => c === code)) code = genFamilyCode();
+    const nextCodes = { ...familyLinkCodes, [name]: code };
+    setFamilyLinkCodes(nextCodes);
+    bloomSetJson(BLOOM_KEYS.familyLinkCodes, nextCodes);
+    return code;
   };
 
   const markAttendance = (records: Omit<AttendanceRecord, "date">[], date: string) => {
@@ -1426,6 +1573,8 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateTeacherSection,
         addStudentToSection,
         removeStudentFromSection,
+        createStudentAccount,
+        regenerateFamilyCode,
         attendance,
         markAttendance,
         getAttendanceForSection,
