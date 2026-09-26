@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from "react";
 import localesData from "../app/locales.json";
-import { BLOOM_KEYS, bloomGetJson, bloomSetJson, bloomGetRaw, bloomSetRaw, bloomRemove, runStorageMigrations } from "@/lib/storage";
+import { BLOOM_KEYS, bloomGetJson, bloomSetJson, bloomGetRaw, bloomSetRaw, bloomRemove, bloomSyncNow, runStorageMigrations } from "@/lib/storage";
 import { verifyPassword, createCredential, seedDemoAccounts } from "@/lib/auth";
 
 export type ThemeMode = "CALM" | "DARK" | "MOTIVATING";
@@ -1001,8 +1001,9 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     role: "youth" | "parent" | "psychologist" | "admin"
   ): Promise<{ success: boolean; error?: string }> => {
     const emailLower = email.toLowerCase().trim();
-    if (!emailLower || !password.trim() || !name.trim()) {
-      return { success: false, error: "All fields are required" };
+    const nameTrimmed = name.trim();
+    if (!emailLower || !password.trim() || !nameTrimmed) {
+      return { success: false, error: "register_error_required" };
     }
 
     const exists = registeredUsers.some(u => u.email.toLowerCase() === emailLower);
@@ -1013,7 +1014,7 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const credential = await createCredential(password.trim());
     const newUser: RegisteredUser = {
       email: email.trim(),
-      name: name.trim(),
+      name: nameTrimmed,
       role,
       salt: credential.salt,
       hash: credential.hash
@@ -1021,7 +1022,11 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const nextUsers = [...registeredUsers, newUser];
     setRegisteredUsers(nextUsers);
+    // bloomSetJson mirrors to the server; flush now so the account is durable
+    // before the UI reports success (a localStorage-only account is discarded
+    // on the next page load, because boot hydration lets the server win).
     bloomSetJson(BLOOM_KEYS.registeredUsers, nextUsers);
+    await bloomSyncNow();
 
     return { success: true };
   };
@@ -1385,7 +1390,10 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Account management
   const deleteRegisteredUser = (email: string) => {
-    const updated = registeredUsers.filter(r => r.email !== email);
+    // Compare case-insensitively: accounts are stored with the case the user
+    // typed, so a case-sensitive match would silently fail to delete.
+    const target = email.toLowerCase().trim();
+    const updated = registeredUsers.filter(r => r.email.toLowerCase().trim() !== target);
     setRegisteredUsers(updated);
     bloomSetJson(BLOOM_KEYS.registeredUsers, updated);
   };

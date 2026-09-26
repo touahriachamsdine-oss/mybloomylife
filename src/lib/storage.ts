@@ -95,12 +95,16 @@ export function bloomGetJson<T>(key: string, fallback: T): T {
   }
 }
 
+// Structured write. Mirrors to the server exactly like bloomSetRaw: any value
+// that is not pushed here is discarded on the next page load, because boot
+// hydration lets the server win for every key it already knows about.
 export function bloomSetJson(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
     // ignore storage errors (quota / privacy mode)
   }
+  enqueueSync(key, JSON.stringify(value));
 }
 
 // Runs once per STORAGE_VERSION bump. Legacy bloom_* keys keep their names
@@ -146,10 +150,15 @@ export function bloomExportAll(): Record<string, string> {
 }
 
 // Restore a previously exported snapshot (used by the data import feature).
+// Each restored key is pushed to the server too, otherwise the reload that
+// follows the import would immediately overwrite the restored values.
 export function bloomImportAll(data: Record<string, string>): void {
   try {
     Object.entries(data).forEach(([key, value]) => {
-      if (key.startsWith(NAMESPACE)) localStorage.setItem(key, value);
+      if (key.startsWith(NAMESPACE)) {
+        localStorage.setItem(key, value);
+        enqueueSync(key, value);
+      }
     });
   } catch {
     // ignore storage errors
@@ -166,7 +175,7 @@ const SYNC_ENDPOINT = "/api/sync";
 const FLUSH_DEBOUNCE_MS = 900;
 
 // Keys that have changed locally but not yet been pushed to the server.
-let pendingSync = new Map<string, string>();
+const pendingSync = new Map<string, string>();
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function enqueueSync(key: string, value: string): void {
@@ -219,6 +228,15 @@ async function postRows(rows: { key: string; value: string }[]): Promise<void> {
   if (!res.ok) throw new Error(`sync status ${res.status}`);
 }
 
+// Identity of an account record for merge/dedupe purposes. Accounts are keyed
+// by email (case-insensitive); anything without a usable email is ignored so a
+// malformed record can never blank out the whole list.
+function emailOfUser(user: unknown): string {
+  if (!user || typeof user !== "object") return "";
+  const email = (user as { email?: unknown }).email;
+  return typeof email === "string" ? email.toLowerCase().trim() : "";
+}
+
 // Boot-strap: pull the authoritative remote state into localStorage and push
 // any local-only keys up so first-run data migrates to the cloud.
 export async function bloomHydrateFromServer(): Promise<void> {
@@ -251,6 +269,37 @@ export async function bloomHydrateFromServer(): Promise<void> {
   const SESSION_KEYS = new Set<string>([BLOOM_KEYS.userRole, BLOOM_KEYS.currentUser]);
   for (const [key, value] of Object.entries(remote)) {
     if (SESSION_KEYS.has(key)) continue;
+    if (key === BLOOM_KEYS.registeredUsers) {
+      // The account list is append-only across devices, so a plain overwrite
+      // would drop accounts registered elsewhere (or registered moments before
+      // a debounced push landed). Union both sides instead: the remote copy is
+      // the base, plus any local account it does not already contain.
+      try {
+        const remoteUsers = JSON.parse(value) as unknown[];
+        const localUsers = bloomGetJson<unknown[]>(BLOOM_KEYS.registeredUsers, []);
+        if (Array.isArray(remoteUsers) && Array.isArray(localUsers)) {
+          const seen = new Set(remoteUsers.map(emailOfUser));
+          const merged = [...remoteUsers];
+          for (const u of localUsers) {
+            const localKey = emailOfUser(u);
+            if (localKey && !seen.has(localKey)) {
+              seen.add(localKey);
+              merged.push(u);
+            }
+          }
+          const mergedRaw = JSON.stringify(merged);
+          try {
+            localStorage.setItem(BLOOM_KEYS.registeredUsers, mergedRaw);
+          } catch {
+            // ignore storage errors
+          }
+          if (mergedRaw !== value) enqueueSync(BLOOM_KEYS.registeredUsers, mergedRaw);
+          continue;
+        }
+      } catch {
+        // fall through to the normal overwrite path
+      }
+    }
     if (value === "") {
       try {
         localStorage.removeItem(key);
