@@ -63,6 +63,9 @@ export async function createCredential(password: string): Promise<StoredCredenti
 
 // Demo accounts used only on first run so the app can be explored without a
 // registration flow. Only their hashes are ever persisted.
+//
+// These have published, trivial passwords, so they are treated as a
+// development fixture and refused in production - see isDemoAccountEmail.
 export const DEMO_ACCOUNTS: DemoAccount[] = [
   { email: "youth@example.com", name: "Sara", role: "youth", password: "123" },
   { email: "parent@example.com", name: "Abu Sara", role: "parent", password: "1234" },
@@ -76,6 +79,20 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   { email: "maman@example.com", name: "Abu Yamina", role: "parent", password: "1234" },
   { email: "drmeriem@example.com", name: "Dr. Meriem", role: "psychologist", password: "123" },
 ];
+
+/**
+ * Whether an email belongs to the published demo fixture.
+ *
+ * Used to refuse these logins in production. Stopping the seeders is not
+ * sufficient on its own: accounts seeded before that gate was added are still
+ * present in the live user list, and a psychologist account with the password
+ * "123" is a working backdoor into real student data. Checking the identity at
+ * sign-in closes that regardless of what the database already contains.
+ */
+export function isDemoAccountEmail(email: string): boolean {
+  const target = email.toLowerCase().trim();
+  return DEMO_ACCOUNTS.some((a) => a.email.toLowerCase() === target);
+}
 
 export async function seedDemoAccounts(): Promise<AuthUser[]> {
   return Promise.all(

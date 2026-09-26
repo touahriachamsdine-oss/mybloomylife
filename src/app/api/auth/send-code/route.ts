@@ -70,7 +70,21 @@ export async function POST(request: NextRequest) {
     return Response.json({ ok: false, error: "send_failed" }, { status: 502 });
   }
 
-  // Dev mode: no provider configured. Log the code so the flow can be tested.
+  // Unconfigured mail transport.
+  //
+  // In production this is a hard failure. The previous behaviour returned the
+  // code in the response body, which let anyone request a code for any address
+  // and complete a login without ever receiving an email - the code in the
+  // response was a complete bypass of the verification step.
+  if (process.env.NODE_ENV === "production") {
+    console.error(
+      "[My Bloomy Life] GMAIL_USER / GMAIL_APP_PASSWORD are not set; refusing to issue a code."
+    );
+    return Response.json({ ok: false, error: "email_unavailable" }, { status: 503 });
+  }
+
+  // Development only: no provider configured. Log the code so the flow can be
+  // tested locally. The code is deliberately not returned to the caller.
   console.log(`[My Bloomy Life] Verification code for ${email} (${purpose}): ${code}`);
-  return Response.json({ ok: true, devCode: code });
+  return Response.json({ ok: true });
 }

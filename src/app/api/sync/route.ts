@@ -7,7 +7,14 @@ const REGISTERED_USERS_KEY = "bloom_registered_users";
 // Blend the demo accounts into the shared store. Every demo email is ensured
 // to exist (added if missing) so fresher credentials are available on every
 // device without wiping users that were registered by hand.
+//
+// Development only. In production this silently re-created demo logins inside
+// the real database on every sync, so anyone who knew the published demo
+// addresses could sign in as a psychologist or a parent and read real student
+// data. Without this gate there is no way to tell a demo account from a real
+// one, because both live in the same user table.
 async function ensureDemoUsers(): Promise<void> {
+  if (process.env.NODE_ENV === "production") return;
   if (!sql || !loadAllState) return;
   try {
     const state = await loadAllState();

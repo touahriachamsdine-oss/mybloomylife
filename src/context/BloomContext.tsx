@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from "react";
 import localesData from "../app/locales.json";
 import { BLOOM_KEYS, bloomGetJson, bloomSetJson, bloomGetRaw, bloomSetRaw, bloomRemove, bloomSyncNow, runStorageMigrations } from "@/lib/storage";
-import { verifyPassword, createCredential, seedDemoAccounts } from "@/lib/auth";
+import { verifyPassword, createCredential, seedDemoAccounts, isDemoAccountEmail } from "@/lib/auth";
 import {
   appendMoodLog,
   negativeMoodCountInWindow,
@@ -12,7 +12,6 @@ import {
   shouldLogMood,
 } from "@/lib/mood";
 
-export type ThemeMode = "CALM" | "DARK" | "MOTIVATING";
 export type AppLanguage = "ar" | "en" | "fr" | "kab";
 
 // Kids Mode: daily play-time limit for children using the parent's account.
@@ -152,6 +151,13 @@ const DEFAULT_SECTIONS: ClassSection[] = [
 ];
 
 // ---- Demo data seeders (for first run / empty DB so monitoring isn't blank) ----
+//
+// Development only. Every seeder below used to run on any device with an empty
+// key and then persist its output, so a real deployment filled itself with
+// invented attendance, behaviour notes, schedules, goals and GPA history on
+// first load - and pushed them to the shared database for every other user.
+// In production an empty key now stays empty and the UI shows an empty state.
+const DEMO_SEEDING_ENABLED = process.env.NODE_ENV !== "production";
 function isoDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -344,7 +350,6 @@ export interface StudentRisk {
 }
 
 export interface BloomContextType {
-  themeMode: ThemeMode;
   appLanguage: AppLanguage;
   currentMood: string; // key like "mood_calm"
   userPoints: number;
@@ -470,7 +475,6 @@ export interface BloomContextType {
   addCustomGame: (game: Omit<CustomGame, "id">) => void;
 
   // Setters/Action functions
-  setThemeMode: (mode: ThemeMode) => void;
   setAppLanguage: (lang: AppLanguage) => void;
   setCurrentMood: (mood: string) => void;
   addPoints: (points: number) => void;
@@ -509,7 +513,6 @@ function saveKidUsedMs(child: string, usedMs: number) {
 
 export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Global States
-  const [themeMode, setThemeModeState] = useState<ThemeMode>("CALM");
   const [appLanguage, setAppLanguageState] = useState<AppLanguage>("ar");
   const [currentMood, setCurrentMoodState] = useState<string>("mood_calm");
   const [userPoints, setUserPointsState] = useState<number>(2350);
@@ -842,7 +845,6 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setMounted(true);
     runStorageMigrations();
     // Load from localStorage if present
-    const savedTheme = bloomGetRaw(BLOOM_KEYS.themeMode) as ThemeMode | null;
     const savedLang = bloomGetRaw(BLOOM_KEYS.language) as AppLanguage | null;
     const savedMood = bloomGetRaw(BLOOM_KEYS.mood);
     const savedPoints = bloomGetRaw(BLOOM_KEYS.points);
@@ -869,7 +871,6 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const savedHelpRequests = bloomGetJson<HelpRequest[] | null>(BLOOM_KEYS.helpRequests, null);
     const savedDailyChallenges = bloomGetJson<DailyChallengeState | null>(BLOOM_KEYS.dailyChallenges, null);
 
-    if (savedTheme) setThemeModeState(savedTheme);
     if (savedLang) setAppLanguageState(savedLang);
     if (savedMood) setCurrentMoodState(savedMood);
     if (savedPoints) setUserPointsState(parseInt(savedPoints, 10));
@@ -892,18 +893,22 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedLinkedChildren) setLinkedChildrenState(savedLinkedChildren);
     if (savedLevelsConfig) setAlgerianLevels(savedLevelsConfig);
     if (savedCustomGames) setCustomGames(savedCustomGames);
-    if (savedSections) setTeacherSections(savedSections); else { setTeacherSections(DEFAULT_SECTIONS); bloomSetJson(BLOOM_KEYS.sections, DEFAULT_SECTIONS); }
+    // These sections name 30 invented students and were written to the shared
+    // database on first load, so a real school started with a full roster of
+    // people who do not exist. Existing sections are left untouched (they may
+    // be real); this only stops new ones being fabricated in production.
+    if (savedSections) setTeacherSections(savedSections); else if (DEMO_SEEDING_ENABLED) { setTeacherSections(DEFAULT_SECTIONS); bloomSetJson(BLOOM_KEYS.sections, DEFAULT_SECTIONS); }
     if (savedAttendance) setAttendance(savedAttendance);
-    else { if (Object.keys(studentGrades).length) { const demoAtt = seedDemoAttendance(Object.keys(studentGrades)); setAttendance(demoAtt); bloomSetJson(BLOOM_KEYS.attendance, demoAtt); } }
+    else if (DEMO_SEEDING_ENABLED && Object.keys(studentGrades).length) { const demoAtt = seedDemoAttendance(Object.keys(studentGrades)); setAttendance(demoAtt); bloomSetJson(BLOOM_KEYS.attendance, demoAtt); }
     if (savedBehaviorNotes) setBehaviorNotes(savedBehaviorNotes);
-    else { if (Object.keys(studentGrades).length) { const demoBh = seedDemoBehavior(Object.keys(studentGrades)); setBehaviorNotes(demoBh); bloomSetJson(BLOOM_KEYS.behaviorNotes, demoBh); } }
+    else if (DEMO_SEEDING_ENABLED && Object.keys(studentGrades).length) { const demoBh = seedDemoBehavior(Object.keys(studentGrades)); setBehaviorNotes(demoBh); bloomSetJson(BLOOM_KEYS.behaviorNotes, demoBh); }
     if (savedSchedule) setSchedule(savedSchedule);
-    else { const demoSch = seedDemoSchedule(); setSchedule(demoSch); bloomSetJson(BLOOM_KEYS.schedule, demoSch); }
+    else if (DEMO_SEEDING_ENABLED) { const demoSch = seedDemoSchedule(); setSchedule(demoSch); bloomSetJson(BLOOM_KEYS.schedule, demoSch); }
     if (savedParentMessages) setParentMessages(savedParentMessages);
     if (savedStudyPlan) setStudyPlanState(savedStudyPlan);
-    else { const demoSp = seedDemoStudyPlan(); setStudyPlanState(demoSp); bloomSetJson(BLOOM_KEYS.studyPlan, demoSp); }
+    else if (DEMO_SEEDING_ENABLED) { const demoSp = seedDemoStudyPlan(); setStudyPlanState(demoSp); bloomSetJson(BLOOM_KEYS.studyPlan, demoSp); }
     if (savedPriorityTasks) setPriorityTasksState(savedPriorityTasks);
-    else { const demoPt = seedDemoPriorityTasks(); setPriorityTasksState(demoPt); bloomSetJson(BLOOM_KEYS.priorityTasks, demoPt); }
+    else if (DEMO_SEEDING_ENABLED) { const demoPt = seedDemoPriorityTasks(); setPriorityTasksState(demoPt); bloomSetJson(BLOOM_KEYS.priorityTasks, demoPt); }
     if (savedHelpRequests) setHelpRequestsState(savedHelpRequests);
     if (savedDailyChallenges && savedDailyChallenges.date === new Date().toISOString().slice(0, 10)) setDailyChallengesState({ ...savedDailyChallenges, history: savedDailyChallenges.history ?? {} });
     if (savedUsers && savedUsers.length > 0) {
@@ -917,8 +922,10 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return u;
       });
       setRegisteredUsers(parsedUsers);
-    } else {
-      // First run: seed the demo accounts (passwords are hashed before storage).
+    } else if (DEMO_SEEDING_ENABLED) {
+      // First run (development only): seed the demo accounts, with passwords
+      // hashed before storage. In production this branch is skipped entirely,
+      // so no known-password account is ever created in the real user list.
       seedDemoAccounts().then(seeded => {
         setRegisteredUsers(seeded);
         bloomSetJson(BLOOM_KEYS.registeredUsers, seeded);
@@ -931,9 +938,11 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedTerm) setActiveTermState(savedTerm);
     const savedTrimGrades = bloomGetJson<TrimesterGradesMap | null>(BLOOM_KEYS.trimesterGrades, null);
     if (savedTrimGrades) setTrimesterGradesState(savedTrimGrades);
-    else { if (Object.keys(studentGrades).length) { const demoTrim = seedDemoTrimesters(Object.keys(studentGrades)); setTrimesterGradesState(demoTrim); bloomSetJson(BLOOM_KEYS.trimesterGrades, demoTrim); } }
+    else if (DEMO_SEEDING_ENABLED && Object.keys(studentGrades).length) { const demoTrim = seedDemoTrimesters(Object.keys(studentGrades)); setTrimesterGradesState(demoTrim); bloomSetJson(BLOOM_KEYS.trimesterGrades, demoTrim); }
     if (savedGpaHistory) setGpaHistoryState(savedGpaHistory);
-    else {
+    else if (DEMO_SEEDING_ENABLED) {
+      // Backfills two invented prior GPA points per student. Real history
+      // accumulates from actual snapshots, so this stays development-only.
       const hist: Record<string, number[]> = {};
       Object.keys(studentGrades).forEach((name) => {
         const g = studentGrades[name] || {};
@@ -947,8 +956,8 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (savedGoals) {
       setGoalsState(savedGoals);
-    } else {
-      // Seed default goals
+    } else if (DEMO_SEEDING_ENABLED) {
+      // Seed default goals (development only)
       const defaultGoals: Goal[] = [
         { id: "1", title: "goal_math", currentProgress: 4, targetProgress: 5 },
         { id: "2", title: "goal_reading", currentProgress: 20, targetProgress: 20 },
@@ -963,12 +972,7 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedSupport) setSupportMessagesState(savedSupport);
   }, []);
 
-  // Update HTML data-theme, dir, and lang attributes on changes
-  useEffect(() => {
-    if (!mounted) return;
-    document.documentElement.setAttribute("data-theme", themeMode);
-  }, [themeMode, mounted]);
-
+  // Update HTML dir and lang attributes on changes
   useEffect(() => {
     if (!mounted) return;
     const isRtl = appLanguage === "ar";
@@ -979,6 +983,16 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Auth operations
   const login = async (email: string, password: string): Promise<boolean> => {
     const emailLower = email.toLowerCase().trim();
+
+    // The demo fixture has published passwords. Any demo account that reached
+    // the live user list before the seeding gate existed is still a working
+    // credential, so the identity is refused outright in production rather
+    // than relying on those rows having been cleaned up.
+    if (process.env.NODE_ENV === "production" && isDemoAccountEmail(emailLower)) {
+      console.warn(`[login] refused demo account in production: ${emailLower}`);
+      return false;
+    }
+
     const foundUser = registeredUsers.find(
       u => u.email.toLowerCase() === emailLower
     );
@@ -1485,11 +1499,6 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Persisting wrapper functions
-  const setThemeMode = (mode: ThemeMode) => {
-    setThemeModeState(mode);
-    bloomSetRaw(BLOOM_KEYS.themeMode, mode);
-  };
-
   const setAppLanguage = (lang: AppLanguage) => {
     setAppLanguageState(lang);
     bloomSetRaw(BLOOM_KEYS.language, lang);
@@ -1611,10 +1620,9 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <BloomContext.Provider
-      value={{
-        themeMode,
-        appLanguage,
-        currentMood,
+         value={{
+           appLanguage,
+           currentMood,
         userPoints,
         goals,
         activeScreen,
@@ -1697,10 +1705,9 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addCustomTrack,
         addCustomYear,
         customGames,
-        addCustomGame,
-        setThemeMode,
-        setAppLanguage,
-        setCurrentMood,
+           addCustomGame,
+           setAppLanguage,
+           setCurrentMood,
         addPoints,
         addGoal,
         incrementGoalProgress,

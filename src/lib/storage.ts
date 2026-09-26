@@ -9,7 +9,6 @@
 const NAMESPACE = "bloom_";
 
 export const BLOOM_KEYS = {
-  themeMode: "bloom_theme_mode",
   language: "bloom_language",
   mood: "bloom_mood",
   points: "bloom_points",
@@ -47,7 +46,7 @@ export const BLOOM_KEYS = {
   storageVersion: "bloom_storage_version",
 } as const;
 
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 
 export function storageAvailable(): boolean {
   try {
@@ -128,6 +127,22 @@ export function runStorageMigrations(): void {
       try {
         localStorage.removeItem(BLOOM_KEYS.userRole);
         localStorage.removeItem(BLOOM_KEYS.currentUser);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // v2 -> v3: remove the abandoned three-theme system. It was write-only - no
+  // CSS ever read data-theme and no screen offered a picker - so the stored
+  // value could not affect anything, but the key is cleared so it stops
+  // syncing to the shared database forever. Appearance follows the OS via the
+  // Tailwind dark: variants, which need no stored state.
+  if (version < 3) {
+    bloomRemove("bloom_theme_mode");
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("bloom_theme_mode");
       } catch {
         // ignore
       }
