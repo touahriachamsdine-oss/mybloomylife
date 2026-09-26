@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useBloom, AppLanguage, AlgerianCycle, StudentGrades, TermId, ALL_TERMS, RegisteredUser, AlgerianLevel, StudentAssignment, MoodLog } from "@/context/BloomContext";
 import { TrendingUp, Gamepad, Heart, Plus, Check, X, Award, Sparkles, Shield, ChevronRight, Activity, Users } from "lucide-react";
+import { dayKey, isNegativeMood } from "@/lib/mood";
 
 function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[]) => string }) {
   const {
@@ -436,7 +437,7 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
                     <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${MOOD_COLORS[log.mood] || "bg-border-custom/30 text-text-secondary"}`}>
                       {MOOD_ICONS[log.mood] || "😶"} {t(log.mood)}
                     </span>
-                    <span className="text-[10px] text-text-secondary font-bold">{log.timestamp}</span>
+                    <span className="text-[10px] text-text-secondary font-bold">{new Date(log.at).toLocaleString()}</span>
                   </div>
                 ))}
               </div>
@@ -855,10 +856,16 @@ function OverviewTab({
   const assignedWithParent = Object.values(studentAssignments).filter(a => (a.parents || []).length > 0).length;
   const assignedWithPsych = Object.values(studentAssignments).filter(a => (a.psychologists || []).length > 0).length;
 
-  const today = new Date().toISOString().slice(0, 10);
-  const todayMoods = moodLogs.filter(m => (m.date || m.timestamp.slice(0, 10)) === today);
-  const recentMoods = [...moodLogs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 6);
-  const negativeMoods = recentMoods.filter(m => ["mood_sad", "mood_anxious", "mood_angry"].includes(m.mood));
+  // dayKey() derives the day from the ISO `at` field. The old expression
+  // (m.date || m.timestamp.slice(0, 10)) sliced a locale string such as
+  // "Yesterday" down to 10 characters, so the "today" filter never matched
+  // real data and returned an arbitrary count.
+  const today = dayKey(new Date().toISOString());
+  const todayMoods = moodLogs.filter(m => dayKey(m.at) === today);
+  // Sorting by new Date(timestamp) produced NaN for every entry, which made
+  // this sort a silent no-op and left the list in arbitrary order.
+  const recentMoods = [...moodLogs].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 6);
+  const negativeMoods = recentMoods.filter(m => isNegativeMood(m.mood));
 
   const stat = (val: string | number, label: string, color: string) => (
     <div className="flex flex-col items-center p-3 rounded-2xl bg-surface border border-border-custom shadow-xs">

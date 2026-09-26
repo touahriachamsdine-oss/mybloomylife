@@ -4,6 +4,13 @@ import React, { createContext, useContext, useState, useEffect, useRef, useMemo 
 import localesData from "../app/locales.json";
 import { BLOOM_KEYS, bloomGetJson, bloomSetJson, bloomGetRaw, bloomSetRaw, bloomRemove, bloomSyncNow, runStorageMigrations } from "@/lib/storage";
 import { verifyPassword, createCredential, seedDemoAccounts } from "@/lib/auth";
+import {
+  appendMoodLog,
+  negativeMoodCountInWindow,
+  normalizeJournalEntries,
+  normalizeMoodLogs,
+  shouldLogMood,
+} from "@/lib/mood";
 
 export type ThemeMode = "CALM" | "DARK" | "MOTIVATING";
 export type AppLanguage = "ar" | "en" | "fr" | "kab";
@@ -22,8 +29,9 @@ export function getKidDailyLimitMs(now: Date = new Date()): number {
 // The parent role's play-time budget is tracked under a single account-level bucket.
 const PARENT_PLAYTIME_KEY = "parent";
 
-// Moods that count toward a "fatigue / stress" alert for parents.
-const NEGATIVE_MOODS = ["mood_sad", "mood_anxious", "mood_angry"];
+// Moods that count toward a "fatigue / stress" alert for parents are defined
+// once in @/lib/mood as isNegativeMood(). A second local copy of this list is
+// how the two definitions drift apart.
 
 // Screens that belong to the student experience and are time-limited for parents.
 const STUDENT_SCREENS = ["home", "academic", "games", "psychological", "learning", "gratitude", "goals", "planner", "portfolio"];
@@ -82,8 +90,7 @@ export interface MoodLog {
   id: string;
   student: string;
   mood: string;
-  timestamp: string;
-  date?: string; // YYYY-MM-DD (added for parent alerts; older logs may lack it)
+  at: string; // ISO 8601. Canonical: sortable, bucketed and windowable.
 }
 
 // ---- Teacher data (sections, attendance, behavior, schedule, messages) ----
@@ -259,19 +266,26 @@ const DEFAULT_DAILY_TASKS: DailyChallengeTask[] = [
   { id: "water", labelKey: "challenge_water", done: false },
 ];
 
+// Journal entries carry the author and an ISO timestamp. Without `student`,
+// entries from different children were indistinguishable and a parent viewing
+// one child was shown every other child's journal. A locale date string
+// ("26/09/2026") was used for the old `date` field, which cannot be sorted
+// reliably; `at` is ISO 8601 and is rendered for display at the point of use.
 export interface LearningEntry {
   id: string;
+  student: string;
   subject: string;
   text: string;
   emoji: string;
-  date: string;
+  at: string;
 }
 
 export interface GratitudeEntry {
   id: string;
+  student: string;
   text: string;
   emoji: string;
-  date: string;
+  at: string;
 }
 
 export interface AlgerianYear {
@@ -434,7 +448,6 @@ export interface BloomContextType {
 
   // Mood history logs
   moodLogs: MoodLog[];
-  addMoodLog: (student: string, mood: string) => void;
 
   // Counselor guidance notes (per student)
   guidanceNotes: Record<string, string[]>;
@@ -726,42 +739,34 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     bloomGetJson<TrimesterGradesMap>(BLOOM_KEYS.trimesterGrades, {})
   );
 
-  // Mood logs state
-  const [moodLogs, setMoodLogsState] = useState<MoodLog[]>([
-    { id: "1", student: "Sara", mood: "mood_happy", timestamp: "10:30 AM" },
-    { id: "2", student: "Ahmed", mood: "mood_calm", timestamp: "09:15 AM" },
-    { id: "3", student: "Sara", mood: "mood_anxious", timestamp: "Yesterday" },
-    { id: "4", student: "Ahmed", mood: "mood_sad", timestamp: "Yesterday" }
-  ]);
+  // Mood history (persisted). Read in the initializer rather than the mount
+  // effect so no fake data is painted before storage is applied. Legacy entries
+  // carried an unparseable locale timestamp instead of `at`; normalizeMoodLogs
+  // drops them rather than inventing a time for them.
+  const [moodLogs, setMoodLogsState] = useState<MoodLog[]>(() =>
+    normalizeMoodLogs(bloomGetJson<MoodLog[] | null>(BLOOM_KEYS.moodLogs, null))
+  );
 
-  // Counselor guidance notes (persisted, keyed by student name)
-  const [guidanceNotes, setGuidanceNotesState] = useState<Record<string, string[]>>(() => {
-    const saved = bloomGetJson<Record<string, string[]> | null>(BLOOM_KEYS.guidanceNotes, null);
-    if (saved) return saved;
-    const pack = (localesData as any)[appLanguage] || (localesData as any)["en"] || {};
-    return {
-      Sara: [pack["psy_seed_note_sara_1"] ?? "", pack["psy_seed_note_sara_2"] ?? ""],
-      Ahmed: [pack["psy_seed_note_ahmed_1"] ?? "", pack["psy_seed_note_ahmed_2"] ?? ""]
-    };
-  });
+  // Counselor guidance notes (persisted, keyed by student name). Starts empty:
+  // seeding invented clinical notes here attributed fake observations to the
+  // psychologist and showed them to parents as real advice.
+  const [guidanceNotes, setGuidanceNotesState] = useState<Record<string, string[]>>(() =>
+    bloomGetJson<Record<string, string[]> | null>(BLOOM_KEYS.guidanceNotes, null) ?? {}
+  );
 
-  // Learning & gratitude journal entries (persisted)
-  const [learningEntries, setLearningEntriesState] = useState<LearningEntry[]>(() => {
-    const saved = bloomGetJson<LearningEntry[] | null>(BLOOM_KEYS.learningEntries, null);
-    if (saved) return saved;
-    return [
-      { id: "1", subject: "الرياضيات", text: "فهمت كيفية حل المعادلات التفاضلية البسيطة وتطبيقها في المسائل.", emoji: "📐", date: new Date().toLocaleDateString("ar-DZ") },
-      { id: "2", subject: "الفيزياء", text: "استوعبت قانون أوم وكيفية تقليل الضياع الحراري في الدارة.", emoji: "⚡", date: new Date().toLocaleDateString("ar-DZ") }
-    ];
-  });
-  const [gratitudeEntries, setGratitudeEntriesState] = useState<GratitudeEntry[]>(() => {
-    const saved = bloomGetJson<GratitudeEntry[] | null>(BLOOM_KEYS.gratitudeEntries, null);
-    if (saved) return saved;
-    return [
-      { id: "1", text: "ممتن لصحة عائلتي والدعم الكبير الذي ألقاه من والدي.", emoji: "❤️", date: new Date().toLocaleDateString("ar-DZ") },
-      { id: "2", text: "ممتن لجو الدراسة الهادئ اليوم وإنجاز أهدافي اليومية.", emoji: "✨", date: new Date().toLocaleDateString("ar-DZ") }
-    ];
-  });
+  // Learning & gratitude journal entries (persisted). Legacy entries had
+  // neither an author nor a sortable timestamp, so they cannot be attributed to
+  // a child or ordered; they are dropped rather than guessed at.
+  const [learningEntries, setLearningEntriesState] = useState<LearningEntry[]>(() =>
+    normalizeJournalEntries<LearningEntry>(
+      bloomGetJson<LearningEntry[] | null>(BLOOM_KEYS.learningEntries, null)
+    )
+  );
+  const [gratitudeEntries, setGratitudeEntriesState] = useState<GratitudeEntry[]>(() =>
+    normalizeJournalEntries<GratitudeEntry>(
+      bloomGetJson<GratitudeEntry[] | null>(BLOOM_KEYS.gratitudeEntries, null)
+    )
+  );
 
   // Default seeded goals & alerts
   // Parent alerts are derived from real data (grades, shared goals, mood logs)
@@ -796,11 +801,15 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     // 3) Fatigue signal: 3+ negative moods in the last 7 days
+    // This used to read log.date, falling back to 0 days ago when absent, so a
+    // log of unknown age counted as current and the window did no windowing at
+    // all. negativeMoodCountInWindow ignores undated entries instead.
+    const now = Date.now();
+    const studentsWithNegativeMoods = Array.from(new Set(moodLogs.map((l) => l.student)));
     const negativeByStudent: Record<string, number> = {};
-    moodLogs.forEach((log) => {
-      if (!NEGATIVE_MOODS.includes(log.mood)) return;
-      const daysAgo = log.date ? Math.round((Date.now() - new Date(log.date).getTime()) / (24 * 60 * 60 * 1000)) : 0;
-      if (daysAgo <= 7) negativeByStudent[log.student] = (negativeByStudent[log.student] || 0) + 1;
+    studentsWithNegativeMoods.forEach((student) => {
+      const count = negativeMoodCountInWindow(moodLogs, student, 7, now);
+      if (count > 0) negativeByStudent[student] = count;
     });
     Object.entries(negativeByStudent).forEach(([student, count]) => {
       if (count >= 3) {
@@ -1352,18 +1361,9 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Mood operations
-  const addMoodLog = (student: string, mood: string) => {
-    const newLog: MoodLog = {
-      id: Date.now().toString(),
-      student,
-      mood,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toISOString().slice(0, 10)
-    };
-    const nextLogs = [newLog, ...moodLogs];
-    setMoodLogsState(nextLogs);
-    bloomSetJson(BLOOM_KEYS.moodLogs, nextLogs);
-  };
+  // addMoodLog was removed: it had zero call sites, and setCurrentMood is now
+  // the only path by which a mood log can exist. Keeping both would leave two
+  // ways to write the same record with different shapes.
 
   // Guidance notes operations
   const assignStudentRoles = (studentName: string, assignments: StudentAssignment) => {
@@ -1495,9 +1495,22 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     bloomSetRaw(BLOOM_KEYS.language, lang);
   };
 
+  // Mood operations.
+  // setCurrentMood is the single writer of mood history: any mood selection
+  // anywhere in the app now produces a dated, per-student record. Previously it
+  // only overwrote one scalar, so no user action could ever create a log and
+  // every mood-derived surface was frozen on hardcoded seed data.
   const setCurrentMood = (mood: string) => {
     setCurrentMoodState(mood);
     bloomSetRaw(BLOOM_KEYS.mood, mood);
+
+    const student = currentUser?.name || "Sara";
+    const now = Date.now();
+    // Guard against a child tapping an emoji repeatedly manufacturing a trend.
+    if (!shouldLogMood(moodLogs, student, mood, now)) return;
+    const next = appendMoodLog(moodLogs, student, mood, now);
+    setMoodLogsState(next);
+    bloomSetJson(BLOOM_KEYS.moodLogs, next);
   };
 
   const addPoints = (points: number) => {
@@ -1673,7 +1686,6 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateTermGrade,
         getTermGrades,
         moodLogs,
-        addMoodLog,
         guidanceNotes,
         updateGuidanceNotes,
         learningEntries,

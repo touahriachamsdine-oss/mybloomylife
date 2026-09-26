@@ -64,6 +64,13 @@ function ParentScreen({
     }
   }, [children, selectedChild]);
 
+  // Journals are per-student. Reading the raw list showed a parent every other
+  // child's entries, so this is filtered to the child actually being viewed.
+  // Strict equality: an entry with no recorded author is withheld rather than
+  // shown to a parent, because exposing one child's journal to another is the
+  // more serious failure. Unattributed legacy entries stay visible to staff.
+  const childLearningEntries = learningEntries.filter((e) => e.student === selectedChild);
+
   // Record a real GPA snapshot each time the overview shows a new average
   useEffect(() => {
     if (!parentAuthenticated || parentView !== "overview") return;
@@ -438,13 +445,13 @@ function ParentScreen({
           {/* Learning journal */}
           <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
             <h3 className="font-black text-sm text-text-primary">{t("parent_learning_journal")}</h3>
-            {learningEntries.length === 0 ? (
+            {childLearningEntries.length === 0 ? (
               <p className="text-xs text-text-secondary">{t("parent_no_learning")}</p>
-            ) : [...learningEntries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 6).map((e) => (
+            ) : [...childLearningEntries].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 6).map((e) => (
               <div key={e.id} className="p-3 rounded-2xl bg-border-custom/10 border border-border-custom flex flex-col gap-1">
                 <div className="flex justify-between items-center gap-2">
                   <span className="text-xs font-black text-text-primary">{e.emoji} {t(e.subject)}</span>
-                  <span className="text-[9px] text-text-secondary">{e.date}</span>
+                  <span className="text-[9px] text-text-secondary">{new Date(e.at).toLocaleDateString()}</span>
                 </div>
                 <p className="text-[11px] text-text-secondary leading-relaxed">{e.text}</p>
               </div>

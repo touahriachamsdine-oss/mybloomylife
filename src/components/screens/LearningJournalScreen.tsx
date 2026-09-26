@@ -10,7 +10,7 @@ function LearningJournalScreen({
   t: (k: string, ...a: (string | number)[]) => string;
   addPoints: (pts: number) => void;
 }) {
-  const { isRtl, learningEntries, updateLearningEntries } = useBloom();
+  const { isRtl, learningEntries, updateLearningEntries, currentUser } = useBloom();
   const [newLearningText, setNewLearningText] = useState("");
   const [newLearningSubject, setNewLearningSubject] = useState("عام");
   const [newLearningEmoji, setNewLearningEmoji] = useState("💡");
@@ -24,10 +24,11 @@ function LearningJournalScreen({
     if (!newLearningText.trim()) return;
     const newEntry = {
       id: Date.now().toString(),
+      student: currentUser?.name ?? "",
       subject: newLearningSubject,
       text: newLearningText.trim(),
       emoji: newLearningEmoji,
-      date: new Date().toLocaleDateString(isRtl ? "ar-DZ" : "en-US")
+      at: new Date().toISOString()
     };
     saveLearningEntries([newEntry, ...learningEntries]);
     addPoints(20);
@@ -140,7 +141,7 @@ function LearningJournalScreen({
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-bold text-text-secondary">{entry.date}</span>
+                  <span className="text-[9px] font-bold text-text-secondary">{new Date(entry.at).toLocaleDateString(isRtl ? "ar-DZ" : "en-US")}</span>
                   <button
                     onClick={() => handleDeleteLearning(entry.id)}
                     className="text-red-400 hover:text-red-600 p-1"

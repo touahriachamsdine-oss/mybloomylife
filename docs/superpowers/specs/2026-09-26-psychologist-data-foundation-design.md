@@ -226,22 +226,30 @@ their contents so an admin can decide per record.
   is possible per mount.
 - `BloomContext.tsx:802` — derive the fatigue window from the real timestamp
   (folded into phase 1's `MoodLog` change).
-- Dead code D1–D8 is removed, except `setThemeMode`/`data-theme`, which is
-  **wired rather than deleted** — see 0.6.
+- Dead code D1–D8 is removed. D1 (`setThemeMode`, `data-theme`,
+  `BLOOM_KEYS.themeMode`) is deleted outright per 0.6.
 
-### 0.6 — The theme system is fixed, not deleted
+### 0.6 — The theme system is removed
 
-D1 is a choice. Deleting `setThemeMode` is ~20 lines and removes a misleading
-attribute and an unused persisted key. Wiring it is ~80 lines: add
-`@custom-variant dark` and `[data-theme="DARK"]` / `[data-theme="CALM"]` /
-`[data-theme="MOTIVATING"]` blocks to `globals.css`, plus a theme picker in
-settings.
+D1 is resolved by **deletion**, per an explicit product decision: the app does
+not use the 3-theme system.
 
-**Recommendation: wire it.** Three themes are already advertised in the UI and
-persisted in `bloom_theme_mode`; Algerian schools commonly mandate a light
-reading theme, so `CALM` has a real use. Deleting a feature the product already
-promises is worse than finishing it. This is the one phase 0 item where the
-cheaper option is not the right one.
+- Delete `setThemeMode` from the context (interface `:460`, implementation
+  `:1488-1491`, exposure `:1689`).
+- Delete `BLOOM_KEYS.themeMode` and the `themeMode` state, and stop writing
+  `data-theme` to `<html>` (`:960`).
+- Leave `globals.css` and the 58 `dark:` utilities alone. They already fall back
+  to Tailwind v4's `prefers-color-scheme`, which follows the OS and is correct
+  behaviour for a two-mode light/dark app.
+- Add a one-time `STORAGE_VERSION` bump to 3 to clear the orphaned
+  `bloom_theme_mode` key. This is the first bump that genuinely needs one,
+  because a removed key leaves real residue behind.
+
+**A note on what this means visually:** today the `dark:` utilities respond to
+the OS, so nothing changes for the user in practice. What disappears is the
+false promise of a CALM / MOTIVATING choice that never worked. The previously
+persisted theme value is discarded, so anyone who had `CALM` selected reverts to
+the OS preference.
 
 ## Testing
 

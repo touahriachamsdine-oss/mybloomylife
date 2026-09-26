@@ -12,6 +12,7 @@ import {
   Trophy
 } from "lucide-react";
 import { useBloom } from "@/context/BloomContext";
+import { dayKey } from "@/lib/mood";
 
 const BADGES: { id: string; key: string; icon: React.ReactNode; descKey: string; unlocked: (ctx: Stats) => boolean }[] = [
   {
@@ -81,18 +82,29 @@ function PortfolioScreen({ t }: { t: (k: string, ...a: (string | number)[]) => s
     currentUser,
   } = useBloom();
 
-  const activeStudentName = userRole === "youth" && currentUser?.name ? currentUser.name : "Sara";
+  // Resolved from the signed-in user only. The previous fallback to "Sara"
+  // attributed a placeholder student's records to whoever was logged in.
+  const activeStudentName = userRole === "youth" && currentUser?.name ? currentUser.name : "";
 
   const stats: Stats = useMemo(() => {
     const visibleGoals = goals.filter(g => !g.studentName || g.studentName === activeStudentName);
+    // Journals are attributed, so count only this student's own entries rather
+    // than crediting them with every other student's writing.
+    const ownLearning = learningEntries.filter(e => e.student === activeStudentName);
+    const ownGratitude = gratitudeEntries.filter(e => e.student === activeStudentName);
+    const ownMoods = moodLogs.filter(m => m.student === activeStudentName);
     return {
       points: userPoints,
       completedGoals: visibleGoals.filter(g => g.currentProgress >= g.targetProgress).length,
-      learningEntries: learningEntries.length,
-      gratitudeEntries: gratitudeEntries.length,
+      learningEntries: ownLearning.length,
+      gratitudeEntries: ownGratitude.length,
       completedSlots: studyPlan.filter(s => s.done).length,
       priorityDone: priorityTasks.filter(p => p.done).length,
-      moodDays: new Set(moodLogs.map(m => m.date ?? "")).size,
+      // Counting distinct days via m.date was always 1: legacy logs had no
+      // date field, so every one of them collapsed into a single "" bucket.
+      // dayKey() derives the day from the ISO `at` field, and filtering out
+      // null keeps undated entries from counting as a day of their own.
+      moodDays: new Set(ownMoods.map(m => dayKey(m.at)).filter(Boolean)).size,
     };
   }, [userPoints, goals, learningEntries, gratitudeEntries, studyPlan, priorityTasks, moodLogs, activeStudentName]);
 

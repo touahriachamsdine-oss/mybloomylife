@@ -53,7 +53,12 @@ function PsychologicalScreen({
 
   // Mood rows restricted to this psychologist's caseload. Reading moodLogs
   // directly would expose unassigned students to the wrong psychologist.
-  const caseloadMoodLogs = moodLogs.filter((m) => students.includes(m.student));
+  // Sorted newest-first explicitly rather than relying on array order, so the
+  // "recent" feed stays correct for data loaded from storage.
+  const caseloadMoodLogs = moodLogs
+    .filter((m) => students.includes(m.student))
+    .slice()
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 
   // Keep adviceStudent updated if students list changes
   useEffect(() => {
@@ -263,7 +268,7 @@ function PsychologicalScreen({
                     <span className="text-[9px] text-text-secondary font-bold">{t(log.mood)}</span>
                   </div>
                 </div>
-                <span className="text-[9px] font-black text-text-secondary">{log.timestamp}</span>
+                <span className="text-[9px] font-black text-text-secondary">{new Date(log.at).toLocaleString()}</span>
               </div>
             ))}
           </div>

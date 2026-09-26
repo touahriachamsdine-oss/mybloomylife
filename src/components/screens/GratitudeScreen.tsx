@@ -10,7 +10,7 @@ function GratitudeScreen({
   t: (k: string, ...a: (string | number)[]) => string;
   addPoints: (pts: number) => void;
 }) {
-  const { isRtl, gratitudeEntries, updateGratitudeEntries } = useBloom();
+  const { isRtl, gratitudeEntries, updateGratitudeEntries, currentUser } = useBloom();
   const [newGratitudeText, setNewGratitudeText] = useState("");
   const [newGratitudeEmoji, setNewGratitudeEmoji] = useState("❤️");
 
@@ -23,9 +23,10 @@ function GratitudeScreen({
     if (!newGratitudeText.trim()) return;
     const newEntry = {
       id: Date.now().toString(),
+      student: currentUser?.name ?? "",
       text: newGratitudeText.trim(),
       emoji: newGratitudeEmoji,
-      date: new Date().toLocaleDateString(isRtl ? "ar-DZ" : "en-US")
+      at: new Date().toISOString()
     };
     saveGratitudeEntries([newEntry, ...gratitudeEntries]);
     addPoints(20);
@@ -116,7 +117,7 @@ function GratitudeScreen({
               <div className="flex items-center justify-between">
                 <span className="text-lg">{entry.emoji}</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-bold text-text-secondary">{entry.date}</span>
+                  <span className="text-[9px] font-bold text-text-secondary">{new Date(entry.at).toLocaleDateString(isRtl ? "ar-DZ" : "en-US")}</span>
                   <button
                     onClick={() => handleDeleteGratitude(entry.id)}
                     className="text-red-400 hover:text-red-600 p-1"

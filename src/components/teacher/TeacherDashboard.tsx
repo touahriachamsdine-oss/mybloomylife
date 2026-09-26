@@ -45,7 +45,13 @@ export default function TeacherDashboard({ t, teacher, onNavigate }: Props) {
   }, [students, studentGrades]);
 
   const recentMoods = useMemo(() => {
-    return moodLogs.filter(m => students.includes(m.student)).slice(-10);
+    // New logs are prepended, so the most recent are at the front. slice(-10)
+    // was returning the ten oldest entries, the opposite of "recent".
+    return moodLogs
+      .filter(m => students.includes(m.student))
+      .slice()
+      .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+      .slice(0, 10);
   }, [moodLogs, students]);
 
   return (
@@ -125,7 +131,7 @@ export default function TeacherDashboard({ t, teacher, onNavigate }: Props) {
                 <div key={i} className="flex items-center gap-2 text-[10px]">
                   <span className="font-bold text-text-primary">{m.student}</span>
                   <span className="text-text-secondary">{t(m.mood)}</span>
-                  <span className="text-text-secondary ml-auto">{new Date(m.timestamp).toLocaleDateString()}</span>
+                  <span className="text-text-secondary ml-auto">{new Date(m.at).toLocaleDateString()}</span>
                 </div>
               ))}
             </div>
