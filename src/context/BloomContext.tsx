@@ -26,7 +26,7 @@ const PARENT_PLAYTIME_KEY = "parent";
 const NEGATIVE_MOODS = ["mood_sad", "mood_anxious", "mood_angry"];
 
 // Screens that belong to the student experience and are time-limited for parents.
-const STUDENT_SCREENS = ["home", "academic", "games", "psychological", "learning", "gratitude", "goals"];
+const STUDENT_SCREENS = ["home", "academic", "games", "psychological", "learning", "gratitude", "goals", "planner", "portfolio"];
 
 // ---- Algerian School Level System ----
 export type AlgerianCycle = "primaire" | "moyen" | "lycee";
@@ -319,6 +319,16 @@ export interface StudentAssignment {
   psychologists: string[];
 }
 
+// Psychologist risk flag for one student. Surfaced on the psychologist's
+// caseload roster and on the parent's monitoring view.
+export type StudentRiskLevel = "low" | "medium" | "high";
+
+export interface StudentRisk {
+  level: StudentRiskLevel;
+  note: string;
+  updatedAt: string;
+}
+
 export interface BloomContextType {
   themeMode: ThemeMode;
   appLanguage: AppLanguage;
@@ -412,6 +422,8 @@ export interface BloomContextType {
   // Only those users (plus the student and the admin) can view the student's data.
   studentAssignments: Record<string, StudentAssignment>;
   assignStudentRoles: (studentName: string, assignments: StudentAssignment) => void;
+  studentRisks: Record<string, StudentRisk>;
+  setStudentRisk: (studentName: string, level: StudentRiskLevel, note: string) => void;
 
   // Trimester (semester) grading system
   activeTerm: TermId;
@@ -513,18 +525,24 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [currentUser, setCurrentUserState] = useState<{ email: string; name: string } | null>(null);
 
   // Tick the play-time countdown once per second while a parent is on a student screen
+  const kidTicksRef = useRef<number>(0);
   useEffect(() => {
     if (userRole !== "parent") return;
     if (!STUDENT_SCREENS.includes(activeScreen)) return;
     if (kidRemainingRef.current <= 0) return;
+    kidTicksRef.current = 0;
     const id = setInterval(() => {
+      kidTicksRef.current += 1;
       const next = Math.max(0, kidRemainingRef.current - 1000);
       kidRemainingRef.current = next;
       setKidRemainingMs(next);
       if (next <= 0) {
         saveKidUsedMs(PARENT_PLAYTIME_KEY, getKidDailyLimitMs());
         clearInterval(id);
-      } else if (next % 5000 === 0) {
+      } else if (kidTicksRef.current % 5 === 0) {
+        // Checkpoint every 5s. A modulo on the absolute remaining value could
+        // never fire once the starting value was not a multiple of 5000, which
+        // silently dropped the accumulated usage.
         saveKidUsedMs(PARENT_PLAYTIME_KEY, getKidDailyLimitMs() - next);
       }
     }, 1000);
@@ -695,6 +713,11 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Admin-assigned roles per student (persisted). Keys are student names.
   const [studentAssignments, setStudentAssignmentsState] = useState<Record<string, StudentAssignment>>(() =>
     bloomGetJson<Record<string, StudentAssignment>>(BLOOM_KEYS.studentAssignments, {})
+  );
+
+  // Psychologist risk flags per student (persisted). Keys are student names.
+  const [studentRisks, setStudentRisksState] = useState<Record<string, StudentRisk>>(() =>
+    bloomGetJson<Record<string, StudentRisk>>(BLOOM_KEYS.studentRisks, {})
   );
 
   // Trimester grading: current term + per-term grade books.
@@ -1037,8 +1060,11 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     bloomRemove(BLOOM_KEYS.userRole);
     bloomRemove(BLOOM_KEYS.currentUser);
     setParentAuthenticatedState(false);
-    kidRemainingRef.current = getKidDailyLimitMs();
-    setKidRemainingMs(getKidDailyLimitMs());
+    // Re-read today's usage instead of refilling the budget: resetting to the
+    // full limit here let anyone bypass the parental time limit by logging out
+    // and back in.
+    kidRemainingRef.current = getKidRemainingMs();
+    setKidRemainingMs(getKidRemainingMs());
     setActiveScreenState("home");
   };
 
@@ -1352,6 +1378,24 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     bloomSetJson(BLOOM_KEYS.studentAssignments, next);
   };
 
+  // Record (or clear) the psychologist's risk flag for one student.
+  const setStudentRisk = (studentName: string, level: StudentRiskLevel, note: string) => {
+    const trimmed = note.trim();
+    const next = { ...studentRisks };
+    if (!trimmed && level === "low") {
+      // An empty note at the lowest level means "no concern" - drop the flag.
+      delete next[studentName];
+    } else {
+      next[studentName] = {
+        level,
+        note: trimmed,
+        updatedAt: new Date().toISOString()
+      };
+    }
+    setStudentRisksState(next);
+    bloomSetJson(BLOOM_KEYS.studentRisks, next);
+  };
+
   const setActiveTerm = (term: TermId) => {
     setActiveTermState(term);
     bloomSetRaw(BLOOM_KEYS.activeTerm, term);
@@ -1621,6 +1665,8 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         linkChildAccount,
         studentAssignments,
         assignStudentRoles,
+        studentRisks,
+        setStudentRisk,
         activeTerm,
         setActiveTerm,
         trimesterGrades,

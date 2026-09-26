@@ -14,7 +14,7 @@ function PsychologicalScreen({
   setCurrentMood: (m: string) => void;
   addPoints: (pts: number) => void;
 }) {
-  const { userRole, currentUser, moodLogs, studentGrades, isRtl, guidanceNotes, updateGuidanceNotes, requestHelp, studentAssignments } = useBloom();
+  const { userRole, currentUser, moodLogs, studentGrades, isRtl, guidanceNotes, updateGuidanceNotes, requestHelp, studentAssignments, studentRisks, setStudentRisk } = useBloom();
   const [breathingActive, setBreathingActive] = useState<boolean>(false);
   const [breathingPhase, setBreathingPhase] = useState<"in" | "hold" | "out">("in");
   const [breathingTimer, setBreathingTimer] = useState<number>(60);
@@ -41,6 +41,19 @@ function PsychologicalScreen({
 
   const [newAdvice, setNewAdvice] = useState("");
   const [adviceStudent, setAdviceStudent] = useState<string>("Sara");
+  const [riskNote, setRiskNote] = useState<string>("");
+
+  // Localized student label, falling back to the raw name when the student has
+  // no dedicated translation (e.g. an admin-created student).
+  const displayStudent = (name: string) => {
+    const key = `parent_child_${name.toLowerCase()}`;
+    const label = t(key);
+    return label.startsWith("parent_child_") ? name : label;
+  };
+
+  // Mood rows restricted to this psychologist's caseload. Reading moodLogs
+  // directly would expose unassigned students to the wrong psychologist.
+  const caseloadMoodLogs = moodLogs.filter((m) => students.includes(m.student));
 
   // Keep adviceStudent updated if students list changes
   useEffect(() => {
@@ -136,13 +149,112 @@ function PsychologicalScreen({
           <p className="text-[11px] text-text-secondary">{t("psy_portal_subtitle")}</p>
         </div>
 
+        {/* Caseload roster + risk flags */}
+        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-black text-sm text-text-primary">{t("psy_caseload_title")}</h3>
+            <span className="px-2 py-0.5 rounded-lg bg-primary/10 text-primary text-[10px] font-black">
+              {students.length}
+            </span>
+          </div>
+
+          {students.length === 0 ? (
+            <p className="text-xs text-text-secondary text-center py-4">{t("psy_caseload_empty")}</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {students.map((name) => {
+                const risk = studentRisks[name];
+                const noteCount = (guidanceNotes[name] || []).length;
+                const moodCount = caseloadMoodLogs.filter((m) => m.student === name).length;
+                return (
+                  <button
+                    type="button"
+                    key={name}
+                    onClick={() => setAdviceStudent(name)}
+                    className={`flex items-center gap-2 p-2.5 rounded-2xl border text-start transition-all ${
+                      adviceStudent === name
+                        ? "border-primary bg-primary/5"
+                        : "border-border-custom bg-border-custom/10 hover:bg-border-custom/20"
+                    }`}
+                  >
+                    <span className="text-xs font-black text-text-primary truncate">{displayStudent(name)}</span>
+                    {risk ? (
+                      <span
+                        className={`px-1.5 py-0.5 rounded-md text-[9px] font-black ${
+                          risk.level === "high"
+                            ? "bg-red-500/15 text-red-500"
+                            : risk.level === "medium"
+                              ? "bg-amber-500/15 text-amber-600"
+                              : "bg-emerald-500/15 text-emerald-600"
+                        }`}
+                      >
+                        {t(`psy_risk_${risk.level}`)}
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded-md bg-border-custom/40 text-text-secondary text-[9px] font-black">
+                        {t("psy_risk_none")}
+                      </span>
+                    )}
+                    <span className="ms-auto flex items-center gap-2 shrink-0 text-[9px] font-bold text-text-secondary">
+                      <span>{t("psy_caseload_notes", noteCount)}</span>
+                      <span>{t("psy_caseload_moods", moodCount)}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Risk flag editor for the selected student */}
+          {adviceStudent && students.includes(adviceStudent) && (
+            <div className="flex flex-col gap-2 pt-3 border-t border-border-custom">
+              <span className="text-[10px] font-black text-text-secondary uppercase tracking-wider">
+                {t("psy_risk_for", displayStudent(adviceStudent))}
+              </span>
+              <div className="flex gap-2">
+                {(["low", "medium", "high"] as const).map((level) => {
+                  const current = studentRisks[adviceStudent];
+                  const active = current?.level === level;
+                  return (
+                    <button
+                      type="button"
+                      key={level}
+                      onClick={() => {
+                        setStudentRisk(adviceStudent, level, riskNote || current?.note || "");
+                        setRiskNote("");
+                      }}
+                      className={`flex-1 py-2 rounded-xl text-[10px] font-black border transition-all ${
+                        active
+                          ? level === "high"
+                            ? "bg-red-500 text-white border-red-500"
+                            : level === "medium"
+                              ? "bg-amber-500 text-white border-amber-500"
+                              : "bg-emerald-500 text-white border-emerald-500"
+                          : "bg-surface border-border-custom text-text-primary hover:bg-border-custom/20"
+                      }`}
+                    >
+                      {t(`psy_risk_${level}`)}
+                    </button>
+                  );
+                })}
+              </div>
+              <input
+                value={riskNote}
+                onChange={(e) => setRiskNote(e.target.value)}
+                placeholder={t("psy_risk_note_placeholder")}
+                className="w-full p-2.5 rounded-xl border border-border-custom bg-surface text-xs focus:ring-2 focus:ring-primary/20 outline-none text-text-primary font-semibold"
+              />
+            </div>
+          )}
+        </div>
+
         {/* Student Mood Logs */}
         <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
           <h3 className="font-black text-sm text-text-primary">{t("psy_recent_mood_logs")}</h3>
           <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1">
-            {moodLogs.length === 0 ? (
+            {caseloadMoodLogs.length === 0 ? (
               <p className="text-xs text-text-secondary text-center py-4">{t("psy_no_mood_logs")}</p>
-            ) : moodLogs.map((log) => (
+            ) : caseloadMoodLogs.map((log) => (
               <div key={log.id} className="flex justify-between items-center p-2.5 rounded-2xl bg-border-custom/10 border border-border-custom/40">
                 <div className="flex items-center gap-2">
                   <span className="text-xl">{moodEmojis[log.mood] || "😊"}</span>
@@ -165,7 +277,7 @@ function PsychologicalScreen({
               {students.map((sName) => (
                 <button type="button" key={sName} onClick={() => setAdviceStudent(sName)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${adviceStudent === sName ? "bg-primary text-white border-primary" : "bg-surface border-border-custom text-text-primary hover:bg-border-custom/20"}`}>
-                  {t(`parent_child_${sName.toLowerCase()}`).startsWith("parent_child_") ? sName : t(`parent_child_${sName.toLowerCase()}`)}
+                  {displayStudent(sName)}
                 </button>
               ))}
             </div>
@@ -188,7 +300,7 @@ function PsychologicalScreen({
               return (
                 <div key={studentName} className="flex flex-col gap-1.5">
                   <span className="text-[10px] font-black text-text-secondary uppercase tracking-wider">
-                    {t(`parent_child_${studentName.toLowerCase()}`).startsWith("parent_child_") ? studentName : t(`parent_child_${studentName.toLowerCase()}`)} ({notes.length})
+                    {displayStudent(studentName)} ({notes.length})
                   </span>
                   {notes.length === 0 ? (
                     <p className="text-[10px] text-text-secondary italic pl-2">{t("psy_no_advice")}</p>

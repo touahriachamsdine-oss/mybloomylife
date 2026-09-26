@@ -397,7 +397,7 @@ function App() {
                 animate={{ x: 0 }}
                 exit={{ x: isRtl ? "100%" : "-100%" }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className={`absolute top-0 bottom-0 ${isRtl ? "right-0" : "left-0"} w-[290px] bg-surface shadow-2xl p-5 flex flex-col justify-between z-50`}
+                className={`absolute top-0 bottom-0 ${isRtl ? "right-0" : "left-0"} w-[290px] bg-surface shadow-2xl p-5 flex flex-col justify-between z-50 overflow-y-auto`}
               >
                 {/* Header */}
                 <div className="flex flex-col">

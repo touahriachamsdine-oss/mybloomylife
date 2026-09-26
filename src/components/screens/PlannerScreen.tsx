@@ -8,6 +8,7 @@ import {
   StudyPlanEntry,
   useBloom
 } from "@/context/BloomContext";
+import FocusTimerCard from "@/components/screens/FocusTimerCard";
 
 const DAY_KEYS = ["planner_day_sun", "planner_day_mon", "planner_day_tue", "planner_day_wed", "planner_day_thu"];
 
@@ -95,6 +96,9 @@ function PlannerScreen({
         <h2 className="text-sm font-black text-text-primary">{t("planner_title")}</h2>
         <p className="text-[11px] text-text-secondary">{t("planner_subtitle")}</p>
       </div>
+
+      {/* ===== Study focus timer ===== */}
+      <FocusTimerCard t={t} />
 
       {/* ===== Revision timetable ===== */}
       <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
