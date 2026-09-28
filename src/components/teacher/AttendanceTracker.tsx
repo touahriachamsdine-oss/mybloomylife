@@ -24,6 +24,11 @@ const STATUS_COLORS: Record<AttendanceStatus, string> = {
   late: "bg-blue-500 text-white",
 };
 
+// An unmarked student is shown distinctly rather than assumed present. The
+// summary already counts these as "unmarked"; the row now agrees with it.
+const UNMARKED_ICON = <span className="text-[10px] font-black">?</span>;
+const UNMARKED_COLOR = "bg-border-custom/40 text-text-secondary";
+
 const NEXT_STATUS: Record<AttendanceStatus, AttendanceStatus> = {
   present: "absent",
   absent: "excused",
@@ -41,20 +46,24 @@ export default function AttendanceTracker({ t, teacher, onNavigate }: Props) {
 
   const todayRecords = teacher.getAttendanceForSection(selectedSectionId, selectedDate);
 
-  const getStatus = (name: string): AttendanceStatus => {
+  // Reports a status only for students actually recorded. Returning "present"
+  // for an unmarked student let the caller below write an attendance record
+  // for a student nobody had marked.
+  const getStatus = (name: string): AttendanceStatus | null => {
     const rec = todayRecords.find(r => r.studentName === name);
-    return rec?.status || "present";
+    return rec?.status ?? null;
   };
 
+  // Sends only the student being toggled. Previously this sent the entire
+  // roster, so marking one student overwrote every unmarked classmate as
+  // present.
   const toggleStatus = (name: string) => {
-    const current = getStatus(name);
+    const current = getStatus(name) ?? "present";
     const next = NEXT_STATUS[current];
-    teacher.markAttendance(
-      students.map(s => ({ studentName: s, sectionId: selectedSectionId, status: s === name ? next : getStatus(s) })),
-      selectedDate
-    );
+    teacher.markAttendance([{ studentName: name, sectionId: selectedSectionId, status: next }], selectedDate);
   };
 
+  // Deliberately applies to the whole roster - that is this button's purpose.
   const markAll = (status: AttendanceStatus) => {
     teacher.markAttendance(
       students.map(s => ({ studentName: s, sectionId: selectedSectionId, status })),
@@ -149,15 +158,18 @@ export default function AttendanceTracker({ t, teacher, onNavigate }: Props) {
 
           <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-1">
             <span className="text-[10px] font-bold text-text-secondary mb-1">{t("teacher_tap_to_toggle")}</span>
-            {students.map(name => (
+            {students.map(name => {
+              const status = getStatus(name);
+              return (
               <button key={name} onClick={() => toggleStatus(name)}
                 className="flex items-center justify-between p-2.5 rounded-xl hover:bg-border-custom/20 transition-all">
                 <span className="text-xs font-bold text-text-primary">{name}</span>
-                <span className={`p-1.5 rounded-lg ${STATUS_COLORS[getStatus(name)]}`}>
-                  {STATUS_ICONS[getStatus(name)]}
+                <span className={`p-1.5 rounded-lg ${status ? STATUS_COLORS[status] : UNMARKED_COLOR}`}>
+                  {status ? STATUS_ICONS[status] : UNMARKED_ICON}
                 </span>
               </button>
-            ))}
+              );
+            })}
           </div>
         </>
       ) : (

@@ -34,7 +34,7 @@ function ParentScreen({
       setParentView(requestedView as typeof parentView);
     }
   }, [requestedView]);
-  const { studentGrades, linkChildAccount, linkedChildren, familyLinkCodes, studentLevels, currentUser, userPoints, gpaHistory, recordGpaSnapshot, goals, addGoal, deleteGoal, parentMessages, sendParentMessage, markMessageRead, guidanceNotes, moodLogs, studentAssignments, behaviorNotes, getBehaviorForStudent, schedule, getScheduleForDay, studyPlan, priorityTasks, dailyChallenges, challengeStreak, challengeBestStreak, trimesterGrades, getTermGrades, learningEntries, gratitudeEntries } = useBloom();
+  const { studentGrades, linkChildAccount, linkedChildren, familyLinkCodes, studentLevels, currentUser, gpaHistory, recordGpaSnapshot, goals, addGoal, deleteGoal, parentMessages, sendParentMessage, markMessageRead, guidanceNotes, moodLogs, studentAssignments, behaviorNotes, getBehaviorForStudent, schedule, getScheduleForDay, studyPlan, priorityTasks, dailyChallenges, challengeStreak, challengeBestStreak, trimesterGrades, getTermGrades, learningEntries, gratitudeEntries } = useBloom();
   const parentEmail = currentUser?.email ?? "";
   // Children visible to this parent: admin-assigned ones + any linked by code.
   const assignedChildren = Object.entries(studentAssignments)
@@ -165,13 +165,22 @@ function ParentScreen({
     const sum = keys.reduce((acc, k) => acc + grades[k], 0);
     return parseFloat((sum / keys.length).toFixed(2));
   };
+  const hasGrades = Object.keys(studentGrades[selectedChild] || {}).length > 0;
 
-  const gpa = computeGPA(selectedChild);
-  const progress = Math.round((gpa / 20) * 100);
+  // A child with no recorded grades has no GPA. computeGPA returns 0 for that
+  // case, which was rendered to the parent as a real 0.00 average and 0%
+  // progress - the same fabrication as the 16.8 fallback in AcademicScreen,
+  // just pessimistic instead of flattering. Null renders as "no data".
+  const gpa: number | null = hasGrades ? computeGPA(selectedChild) : null;
+  const progress: number | null = gpa === null ? null : Math.round((gpa / 20) * 100);
   const activeStudentLevel = studentLevels[selectedChild];
   
-  // Real GPA trend snapshots recorded as the child's grades change
-  const history = gpaHistory[selectedChild] && gpaHistory[selectedChild].length > 0 ? gpaHistory[selectedChild] : [gpa];
+  // Real GPA trend snapshots recorded as the child's grades change.
+  // Seeded with the current GPA only when one exists - a child with no grades
+  // has no history to plot, and the old fallback charted a literal 0.
+  const history: number[] = gpaHistory[selectedChild] && gpaHistory[selectedChild].length > 0
+    ? gpaHistory[selectedChild]
+    : (gpa === null ? [] : [gpa]);
   // Real psychologist guidance notes for this child
   const notes = guidanceNotes[selectedChild] || [];
 
@@ -200,8 +209,14 @@ function ParentScreen({
   const activeChildInfo = {
     gpa,
     progress,
-    level: activeStudentLevel?.year || 12,
-    points: userPoints,
+    // No hardcoded year: a child with no level recorded has no level, and
+    // inventing one showed a specific school year on the profile card.
+    level: activeStudentLevel?.year ?? null,
+    // Points are tracked per account, not per child (the same single bucket as
+    // parental screen time), so they are not the selected child's and are no
+    // longer presented as such. The account total is shown once, labelled
+    // as such, in the header.
+    points: null as number | null,
     history,
     notes
   };
@@ -786,11 +801,14 @@ function ParentScreen({
             <span className="font-black text-xs text-text-primary uppercase tracking-wide">{t("parent_today_snapshot")}</span>
           </div>
           <div className="flex flex-wrap gap-2 text-[10px]">
-            <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-md font-black">GPA {gpa}</span>
-            <span className="bg-amber-400/10 text-amber-700 px-2 py-0.5 rounded-md font-black">Avg {Math.round((Object.values(studentGrades[selectedChild]||{}).reduce((a,b)=>a+b,0)/Math.max(1,Object.keys(studentGrades[selectedChild]||{}).length))*10)/10}</span>
-            <span className="bg-green-500/10 text-green-700 px-2 py-0.5 rounded-md font-black">Points {userPoints}</span>
-            <span className="bg-indigo-400/10 text-indigo-700 px-2 py-0.5 rounded-md font-black">Notes {notes.length}</span>
-            <span className="bg-red-400/10 text-red-700 px-2 py-0.5 rounded-md font-black">Goals {childGoals.length}</span>
+            {gpa !== null && <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-md font-black">GPA {gpa}</span>}
+            {hasGrades && (
+              <span className="bg-amber-400/10 text-amber-700 px-2 py-0.5 rounded-md font-black">
+                Avg {Math.round((Object.values(studentGrades[selectedChild]).reduce((a, b) => a + b, 0) / Object.keys(studentGrades[selectedChild]).length) * 10) / 10}
+              </span>
+            )}
+            {t("parent_notes_count", notes.length)}
+            {t("parent_goals_count", childGoals.length)}
           </div>
         </div>
 
@@ -805,7 +823,9 @@ function ParentScreen({
                 {t(`parent_child_${selectedChild.toLowerCase()}`)}
               </span>
               <span className="text-[9px] text-text-secondary font-semibold">
-                {t("parent_child_level", activeChildInfo.level)}
+                {activeChildInfo.level === null
+                  ? t("parent_child_level_unknown")
+                  : t("parent_child_level", activeChildInfo.level)}
               </span>
             </div>
           </div>
@@ -813,15 +833,15 @@ function ParentScreen({
           <div className="flex gap-4 text-center">
             <div className="flex flex-col">
               <span className="text-[10px] text-text-secondary font-semibold">{t("parent_gpa")}</span>
-              <span className="text-xs font-black text-emerald-500">{activeChildInfo.gpa}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] text-text-secondary font-semibold">{t("parent_points")}</span>
-              <span className="text-xs font-black" style={{ color: 'var(--accent-orange)' }}>{activeChildInfo.points}</span>
+              <span className="text-xs font-black text-emerald-500">
+                {activeChildInfo.gpa === null ? "--" : activeChildInfo.gpa}
+              </span>
             </div>
             <div className="flex flex-col">
               <span className="text-[10px] text-text-secondary font-semibold">{t("parent_child_progress")}</span>
-              <span className="text-xs font-black text-primary">{activeChildInfo.progress}%</span>
+              <span className="text-xs font-black text-primary">
+                {activeChildInfo.progress === null ? "--" : `${activeChildInfo.progress}%`}
+              </span>
             </div>
           </div>
         </div>
@@ -829,18 +849,26 @@ function ParentScreen({
         {/* Academic GPA history chart SVG */}
         <div className="flex flex-col gap-1.5">
           <span className="text-[10px] font-black text-text-secondary uppercase tracking-wider">{t("parent_gpa_trend")}</span>
+          {activeChildInfo.history.length === 0 ? (
+            <p className="text-xs text-text-secondary text-center py-4">{t("parent_no_gpa_history")}</p>
+          ) : (
           <div className="flex justify-center py-2 bg-border-custom/10 rounded-2xl p-2">
             <svg width="280" height="70" className="overflow-visible">
               {/* Draw points */}
               {activeChildInfo.history.map((histVal, idx) => {
-                const x = 20 + (idx / 3) * 240;
+                // Spread across the full width using the actual number of
+                // points. The divisor was hardcoded to 3, which assumed exactly
+                // four snapshots: with two points the line stopped at a third
+                // of the chart, and with more it ran off the right edge.
+                const last = Math.max(1, activeChildInfo.history.length - 1);
+                const x = 20 + (idx / last) * 240;
                 // scale 10.0 to 18.0
                 const y = 60 - ((histVal - 10) / 8) * 50;
                 return (
                   <g key={idx}>
                     {idx > 0 && (
                       <line
-                        x1={20 + ((idx - 1) / 3) * 240}
+                        x1={20 + ((idx - 1) / last) * 240}
                         y1={60 - ((activeChildInfo.history[idx - 1] - 10) / 8) * 50}
                         x2={x}
                         y2={y}
@@ -857,6 +885,7 @@ function ParentScreen({
               })}
             </svg>
           </div>
+          )}
         </div>
 
         {/* Psychologist advice notes */}

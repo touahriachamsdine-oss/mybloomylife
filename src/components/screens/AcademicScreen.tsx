@@ -1,22 +1,31 @@
 "use client";
 import { useState } from "react";
-import { useBloom, StudentGrades } from "@/context/BloomContext";
+import { useBloom, StudentGrades, ALL_TERMS, TermId } from "@/context/BloomContext";
 
 function AcademicScreen({ t }: { t: (k: string, ...a: (string | number)[]) => string }) {
-  const { studentGrades, updateGrade, userRole, currentUser } = useBloom();
+  const { studentGrades, trimesterGrades, updateGrade, userRole, currentUser } = useBloom();
   const students = Object.keys(studentGrades);
-  const [teacherSelectedStudent, setTeacherSelectedStudent] = useState<string>("Sara");
+  const [teacherSelectedStudent, setTeacherSelectedStudent] = useState<string>(students[0] ?? "");
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
 
-  // Identify who we are inspecting
-  const currentStudent = userRole === "admin" ? (teacherSelectedStudent || students[0] || "Sara") : (userRole === "youth" ? (currentUser?.name || "Sara") : "Sara");
+  // Identify who we are inspecting. Resolved from the signed-in user or the
+  // real roster only; the previous "Sara" fallbacks invented a student when
+  // no user was signed in or the roster was empty.
+  const currentStudent = userRole === "admin"
+    ? (teacherSelectedStudent || students[0] || "")
+    : (userRole === "youth" ? (currentUser?.name || "") : "");
   const grades = studentGrades[currentStudent] || {};
 
-  // Calculate dynamic average GPA out of 20
+  // Calculate dynamic average GPA out of 20.
+  // null when the student has no grades at all. It used to fall back to 16.8,
+  // which rendered a fabricated near-perfect average on the dashboard and in
+  // the progress ring for any student with no recorded marks.
   const subjectKeys = Object.keys(grades);
   const totalSubjects = subjectKeys.length;
   const gradesSum = subjectKeys.reduce((acc, k) => acc + grades[k], 0);
-  const currentGPA = totalSubjects > 0 ? parseFloat((gradesSum / totalSubjects).toFixed(2)) : 16.8;
+  const currentGPA: number | null = totalSubjects > 0
+    ? parseFloat((gradesSum / totalSubjects).toFixed(2))
+    : null;
 
   // Algerian subjects styling colors
   const subjectColors: Record<string, string> = {
@@ -33,25 +42,36 @@ function AcademicScreen({ t }: { t: (k: string, ...a: (string | number)[]) => st
     subject_philosophy: "bg-violet-500"
   };
 
-  // 3-Trimester progress values
-  const trimesters = currentStudent === "Ahmed" ? [
-    { num: 1, gpa: 13.50 },
-    { num: 2, gpa: 14.20 },
-    { num: 3, gpa: currentGPA }
-  ] : [
-    { num: 1, gpa: 15.20 },
-    { num: 2, gpa: 15.80 },
-    { num: 3, gpa: currentGPA }
-  ];
+  // 3-Trimester progress, read from real per-term grades.
+  //
+  // This previously returned a hardcoded history chosen by testing the
+  // student's *name* against "Ahmed" - Sara got an invented 15.20/15.80 and
+  // every other real student was shown Sara's numbers. Terms with no recorded
+  // grades are omitted rather than filled in, and the chart below handles a
+  // short list.
+  const termAverage = (term: TermId): number | null => {
+    const bySubject = trimesterGrades[currentStudent]?.[term];
+    if (!bySubject) return null;
+    const values = Object.values(bySubject).filter((v) => typeof v === "number") as number[];
+    if (values.length === 0) return null;
+    return parseFloat((values.reduce((a, b) => a + b, 0) / values.length).toFixed(2));
+  };
+  const trimesters = ALL_TERMS
+    .map((term) => ({ num: ALL_TERMS.indexOf(term) + 1, gpa: termAverage(term) }))
+    .filter((x): x is { num: number; gpa: number } => x.gpa !== null);
 
   // SVG dimensions
   const width = 300;
   const height = 100;
   const padding = 20;
 
-  // Convert GPA coordinates for SVG (GPA ranges from 10 to 20 for scaling)
+  // Convert GPA coordinates for SVG (GPA ranges from 10 to 20 for scaling).
+  // A single recorded term used to divide by zero and produce NaN coordinates,
+  // which silently drew no line; one point is centred instead.
   const points = trimesters.map((termVal, index) => {
-    const x = padding + (index / (trimesters.length - 1)) * (width - padding * 2);
+    const x = trimesters.length < 2
+      ? width / 2
+      : padding + (index / (trimesters.length - 1)) * (width - padding * 2);
     const y = height - padding - ((termVal.gpa - 10) / (20 - 10)) * (height - padding * 2);
     return { x, y, ...termVal };
   });
@@ -93,7 +113,9 @@ function AcademicScreen({ t }: { t: (k: string, ...a: (string | number)[]) => st
         <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
           <div className="flex justify-between items-center border-b border-border-custom pb-2">
             <span className="text-xs font-black text-text-primary">{t("aca_subject_grades")}</span>
-            <span className="text-xs font-black text-primary font-bold">{t("aca_class_average", currentGPA)}</span>
+            <span className="text-xs font-black text-primary font-bold">
+              {currentGPA === null ? t("aca_no_grades_yet") : t("aca_class_average", currentGPA)}
+            </span>
           </div>
 
           <div className="flex flex-col gap-3 pt-1 max-h-[400px] overflow-y-auto pr-1">
@@ -151,12 +173,17 @@ function AcademicScreen({ t }: { t: (k: string, ...a: (string | number)[]) => st
               className="stroke-primary fill-none transition-all duration-1000"
               strokeWidth="8"
               strokeDasharray="301"
-              strokeDashoffset={301 - (301 * (currentGPA / 20) * 100) / 100}
+              // No recorded grades means no ring to draw. Rendering it with a
+              // null GPA previously produced a NaN offset, which browsers draw
+              // as a full or arbitrary sweep.
+              strokeDashoffset={currentGPA === null ? 301 : 301 - (301 * (currentGPA / 20) * 100) / 100}
               strokeLinecap="round"
             />
           </svg>
           <div className="absolute flex flex-col items-center">
-            <span className="text-2xl font-black text-text-primary">{currentGPA}</span>
+            <span className="text-2xl font-black text-text-primary">
+              {currentGPA === null ? "--" : currentGPA}
+            </span>
             <span className="text-[10px] font-black text-text-secondary">/ 20</span>
           </div>
         </div>
@@ -170,6 +197,10 @@ function AcademicScreen({ t }: { t: (k: string, ...a: (string | number)[]) => st
       {/* Interactive Line Graph */}
       <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
         <h3 className="font-black text-sm text-text-primary">{t("aca_trimester_trend")}</h3>
+        {points.length === 0 ? (
+          <p className="text-xs text-text-secondary text-center py-6">{t("aca_no_trimester_data")}</p>
+        ) : (
+        <>
         <p className="text-[10px] text-text-secondary">{t("aca_hover_hint")}</p>
 
         <div className="relative flex justify-center py-2">
@@ -236,6 +267,8 @@ function AcademicScreen({ t }: { t: (k: string, ...a: (string | number)[]) => st
             ))}
           </svg>
         </div>
+        </>
+        )}
       </div>
 
       {/* Grade Subject cards */}

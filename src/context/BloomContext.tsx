@@ -182,7 +182,11 @@ function seedDemoBehavior(students: string[]): BehaviorNote[] {
     ["negative", "Was distracted during class, reminded to focus."],
   ];
   students.forEach((s, i) => {
-    notes.push({ id: `bh-${s}-1`, date: isoDaysAgo(3 + i), studentName: s, type: samples[i][0], note: samples[i][1], teacherName: "Teacher" });
+    // Both lookups must wrap: this is indexed by student position, and the
+    // sample list has 4 entries, so the 5th student previously read
+    // samples[4][0] and threw. The second note already wrapped correctly,
+    // which is why only the first one crashed.
+    notes.push({ id: `bh-${s}-1`, date: isoDaysAgo(3 + i), studentName: s, type: samples[i % samples.length][0], note: samples[i % samples.length][1], teacherName: "Teacher" });
     notes.push({ id: `bh-${s}-2`, date: isoDaysAgo(9 + i), studentName: s, type: samples[(i + 1) % samples.length][0], note: samples[(i + 1) % samples.length][1], teacherName: "Teacher" });
   });
   return notes;
@@ -515,7 +519,9 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Global States
   const [appLanguage, setAppLanguageState] = useState<AppLanguage>("ar");
   const [currentMood, setCurrentMoodState] = useState<string>("mood_calm");
-  const [userPoints, setUserPointsState] = useState<number>(2350);
+  // Starts at zero. This was seeded with 2350, so every new account opened with
+  // an invented score that no activity had earned.
+  const [userPoints, setUserPointsState] = useState<number>(0);
   const [goals, setGoalsState] = useState<Goal[]>([]);
   const [activeScreen, setActiveScreenState] = useState<string>("home");
   const [drawerOpen, setDrawerOpenState] = useState<boolean>(false);
@@ -1222,10 +1228,23 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return code;
   };
 
+  // Records are merged per student, not per section.
+  //
+  // This used to delete every record for the date+section and re-insert
+  // whatever the caller passed. The caller (AttendanceTracker) passes the whole
+  // roster with unrecorded students defaulted to "present", so tapping a single
+  // student rewrote the entire class as present - manufacturing attendance for
+  // students nobody had marked. Merging per student means a call only affects
+  // the students it actually names, and "mark all present" still works.
   const markAttendance = (records: Omit<AttendanceRecord, "date">[], date: string) => {
     const dateStr = date || new Date().toISOString().slice(0, 10);
-    const next = attendance.filter(r => r.date !== dateStr || r.sectionId !== records[0]?.sectionId);
-    const merged = [...next, ...records.map(r => ({ ...r, date: dateStr }))];
+    if (records.length === 0) return;
+    const sectionIds = new Set(records.map(r => r.sectionId));
+    const named = new Set(records.map(r => `${r.sectionId}::${r.studentName}`));
+    const untouched = attendance.filter(
+      r => r.date !== dateStr || !sectionIds.has(r.sectionId) || !named.has(`${r.sectionId}::${r.studentName}`)
+    );
+    const merged = [...untouched, ...records.map(r => ({ ...r, date: dateStr }))];
     setAttendance(merged);
     bloomSetJson(BLOOM_KEYS.attendance, merged);
   };
