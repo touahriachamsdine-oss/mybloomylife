@@ -16,7 +16,9 @@ function GamesScreen({
   const { currentUser, userRole, studentLevels, appLanguage, customGames } = useBloom();
   const [activeGame, setActiveGame] = useState<string | null>(null);
 
-  const studentName = (userRole === "youth" && currentUser?.name) ? currentUser.name : "Sara";
+  // Difficulty is scaled to the signed-in child's level. No "Sara" fallback:
+  // that read another child's level for parents and staff.
+  const studentName = userRole === "youth" ? currentUser?.name || "" : "";
   const studentLevel = studentLevels[studentName];
   const cycle = studentLevel?.cycle || "moyen";
 

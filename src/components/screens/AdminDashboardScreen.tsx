@@ -54,7 +54,10 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
   const students = Object.keys(studentGrades);
 
   // ── Students state ──
-  const [selectedStudent, setSelectedStudent] = useState<string>("Sara");
+  // Empty until a real student is picked. The old "Sara" default made the
+  // admin open on a student who may not exist, and let a grade edit silently
+  // create one.
+  const [selectedStudent, setSelectedStudent] = useState<string>("");
   const [editGrade, setEditGrade] = useState<Record<string, string>>({});
   const [gradeMsg, setGradeMsg] = useState<string | null>(null);
   const [newStudent, setNewStudent] = useState<string>("");
@@ -170,6 +173,7 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
 
   // ── Grade update handler ──
   const handleGradeUpdate = (subject: string) => {
+    if (!selectedStudent) return;
     const val = parseFloat(editGrade[subject] || "");
     if (isNaN(val) || val < 0 || val > 20) { setGradeMsg(t("admin_grade_range")); return; }
     updateGrade(selectedStudent, subject, val);
@@ -194,7 +198,7 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
   const prevTerm = prevTermIndex >= 0 ? ALL_TERMS[prevTermIndex] : null;
   const canCopyPrev = prevTerm !== null && Object.keys(termBook(prevTerm)).length > 0;
   const copyPreviousTerm = () => {
-    if (!prevTerm) return;
+    if (!prevTerm || !selectedStudent) return;
     const prev = termBook(prevTerm);
     Object.entries(prev).forEach(([subj, val]) => {
       updateGrade(selectedStudent, subj, val);
@@ -213,6 +217,7 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
   const parentUsers = registeredUsers.filter(u => u.role === "parent");
   const psyUsers = registeredUsers.filter(u => u.role === "psychologist");
   const toggleAssignment = (role: "parent" | "psychologist", email: string) => {
+    if (!selectedStudent) return;
     const cur = studentAssignments[selectedStudent] || { parents: [], psychologists: [] };
     const arr = role === "parent" ? cur.parents : cur.psychologists;
     const list = arr.includes(email) ? arr.filter(e => e !== email) : [...arr, email];
@@ -356,7 +361,13 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
             ))}
           </div>
 
-          {/* Student Info Card */}
+          {/* Student Info Card. Every panel in it is keyed on a student name,
+              so with none selected it would show an empty-name record. */}
+          {!selectedStudent && (
+            <p className="text-xs text-text-secondary">{t("admin_no_students")}</p>
+          )}
+          {selectedStudent && (
+          <>
           <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h3 className="font-black text-sm text-text-primary">{selectedStudent}</h3>
@@ -538,6 +549,8 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
               ))}
             </div>
           </div>
+          </>
+          )}
         </>
       )}
 

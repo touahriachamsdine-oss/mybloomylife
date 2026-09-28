@@ -11,7 +11,9 @@ function AcademicScreen({ t }: { t: (k: string, ...a: (string | number)[]) => st
   // Identify who we are inspecting. Resolved from the signed-in user or the
   // real roster only; the previous "Sara" fallbacks invented a student when
   // no user was signed in or the roster was empty.
-  const currentStudent = userRole === "admin"
+  // Admin and teacher both get the staff grade book.
+  const isStaff = userRole === "admin" || userRole === "teacher";
+  const currentStudent = isStaff
     ? (teacherSelectedStudent || students[0] || "")
     : (userRole === "youth" ? (currentUser?.name || "") : "");
   const grades = studentGrades[currentStudent] || {};
@@ -81,11 +83,11 @@ function AcademicScreen({ t }: { t: (k: string, ...a: (string | number)[]) => st
     return index === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`;
   }, "");
 
-  // If admin, render Grade Book Dashboard
-  if (userRole === "admin") {
+  // If admin or teacher, render Grade Book Dashboard
+  if (isStaff) {
     return (
       <>
-        {/* Admin Selection Card */}
+        {/* Staff Selection Card */}
         <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
           <div>
             <h2 className="text-xs font-black text-primary uppercase tracking-wider">{t("aca_teacher_grade_book")}</h2>

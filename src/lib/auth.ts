@@ -10,17 +10,52 @@ export interface StoredCredential {
   hash: string;
 }
 
+// Single source of truth for the role union. This was previously inlined in
+// seven separate places, and every copy had to be edited in lockstep to add a
+// role - which is how the teacher role ended up silently dropped while the
+// union still claimed to describe every possible role.
+export type UserRole = "youth" | "parent" | "teacher" | "psychologist" | "admin";
+
+export const USER_ROLES: readonly UserRole[] = [
+  "youth",
+  "parent",
+  "teacher",
+  "psychologist",
+  "admin",
+] as const;
+
+export function isUserRole(value: unknown): value is UserRole {
+  return typeof value === "string" && (USER_ROLES as readonly string[]).includes(value);
+}
+
+// Roles a visitor may pick for themselves at signup.
+// "admin" is deliberately excluded: self-registering as an administrator would
+// be a privilege escalation, and the register() signature used to be loose
+// enough that a hand-rolled request could claim any role at all.
+export type SelfRegisterRole = Exclude<UserRole, "admin">;
+
+export const SELF_REGISTER_ROLES: readonly SelfRegisterRole[] = [
+  "youth",
+  "parent",
+  "teacher",
+  "psychologist",
+] as const;
+
+export function isSelfRegisterRole(value: unknown): value is SelfRegisterRole {
+  return typeof value === "string" && (SELF_REGISTER_ROLES as readonly string[]).includes(value);
+}
+
 export interface DemoAccount {
   email: string;
   name: string;
-  role: "youth" | "parent" | "psychologist" | "admin";
+  role: UserRole;
   password: string;
 }
 
 export interface AuthUser extends StoredCredential {
   email: string;
   name: string;
-  role: "youth" | "parent" | "psychologist" | "admin";
+  role: UserRole;
   password?: never;
 }
 

@@ -112,10 +112,24 @@ export function shouldLogMood(
 ): boolean {
   const mine = existing.filter((l) => l.student === student);
   if (mine.length === 0) return true;
-  const last = mine[0];
-  if (last.mood !== mood) return true;
-  const lastMs = Date.parse(last.at);
+  // Find the most recent entry for this student by timestamp rather than
+  // assuming index 0 is newest. Callers keep the array newest-first, but
+  // anything that appends at the end (or a legacy store whose order was not
+  // preserved) made the dedup window compare against the wrong entry, which
+  // either blocked a legitimate mood change or let a repeat through.
+  let lastMs = Number.NaN;
+  let lastMood = "";
+  for (const l of mine) {
+    const ms = Date.parse(l.at);
+    if (Number.isNaN(ms)) continue;
+    if (Number.isNaN(lastMs) || ms > lastMs) {
+      lastMs = ms;
+      lastMood = l.mood;
+    }
+  }
+  // Every stored entry had an unparseable timestamp: treat as no history.
   if (Number.isNaN(lastMs)) return true;
+  if (lastMood !== mood) return true;
   return now - lastMs >= windowMs;
 }
 

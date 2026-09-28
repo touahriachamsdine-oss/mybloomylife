@@ -23,19 +23,25 @@ function HomeScreen({
   currentMood: string;
   setActiveScreen: (s: string) => void;
 }) {
-  const { currentUser, studentGrades, userRole, dailyChallenges, toggleDailyChallenge, challengeStreak, challengeBestStreak } = useBloom();
+  const { currentUser, studentGrades, userRole, dailyChallenges, toggleDailyChallenge, challengeStreak, challengeBestStreak, schedule, gpaHistory: studentGpaHistory } = useBloom();
   const [moodTip, setMoodTip] = useState<string | null>(null);
   const [celebrateGoalId, setCelebrateGoalId] = useState<string | null>(null);
-  
-  // Get active student name
-  const studentName = userRole === "youth" ? (currentUser?.name || "Sara") : "Sara";
+
+  // Get active student name. No "Sara" fallback: it invented a student whenever
+  // no youth was signed in, so the dashboard showed a real-looking dashboard
+  // belonging to nobody.
+  const studentName = userRole === "youth" ? (currentUser?.name || "") : "";
   const grades = studentGrades[studentName] || {};
   
   // Calculate GPA dynamically out of 20
   const subjectKeys = Object.keys(grades);
   const totalSubjects = subjectKeys.length;
   const gradesSum = subjectKeys.reduce((acc, k) => acc + grades[k], 0);
-  const currentGPA = totalSubjects > 0 ? parseFloat((gradesSum / totalSubjects).toFixed(2)) : 16.8;
+  // null when there are no recorded marks. It used to fall back to 16.8,
+  // presenting a fabricated near-perfect average on the home dashboard.
+  const currentGPA: number | null = totalSubjects > 0
+    ? parseFloat((gradesSum / totalSubjects).toFixed(2))
+    : null;
 
   // Last 7 days of challenge history for the mini-calendar (most recent first)
   const challengeWeek = (() => {
@@ -73,14 +79,15 @@ function HomeScreen({
   const currentHour = currentTime.getHours();
   const currentMinute = currentTime.getMinutes();
 
-  // Mock prayer times (Algiers typical times)
-  const prayerTimes = [
-    { name: "prayer_fadjr", time: "04:12", h: 4, m: 12 },
-    { name: "prayer_dhuhr", time: "12:45", h: 12, m: 45 },
-    { name: "prayer_asr", time: "16:30", h: 16, m: 30 },
-    { name: "prayer_maghrib", time: "20:05", h: 20, m: 5 },
-    { name: "prayer_isha", time: "21:40", h: 21, m: 40 }
-  ];
+  // Prayer times.
+  //
+  // These were hardcoded to "typical Algiers" values and rendered as if they
+  // were a real calculation: the card labelled a wilaya, highlighted "next
+  // prayer", and counted down to it. Prayer time depends on date, coordinates
+  // and method, so a fixed list is not a rough estimate - it is wrong, and
+  // wrong in a way that looks authoritative. There is no calculation or data
+  // source in this project, so the widget is not shown at all.
+  const prayerTimes: { name: string; time: string; h: number; m: number }[] = [];
 
   // Find index of next prayer
   let nextPrayerIdx = 0;
@@ -95,65 +102,21 @@ function HomeScreen({
     }
   }
 
-  // School Week schedules (Sunday - Thursday)
-  const schoolSchedule: Record<string, Record<number, { time: string; subject: string }[]>> = {
-    Sara: {
-      0: [
-        { time: "08:00 - 09:30", subject: "subject_math" },
-        { time: "09:45 - 11:15", subject: "subject_physics" },
-        { time: "11:30 - 13:00", subject: "subject_arabic" }
-      ],
-      1: [
-        { time: "08:00 - 09:30", subject: "subject_french" },
-        { time: "09:45 - 11:15", subject: "subject_english" },
-        { time: "11:30 - 13:00", subject: "subject_science" }
-      ],
-      2: [
-        { time: "08:00 - 09:30", subject: "subject_math" },
-        { time: "09:45 - 11:15", subject: "subject_science" },
-        { time: "11:30 - 13:00", subject: "subject_history_geo" }
-      ],
-      3: [
-        { time: "08:00 - 09:30", subject: "subject_philosophy" },
-        { time: "09:45 - 11:15", subject: "subject_physics" },
-        { time: "11:30 - 13:00", subject: "subject_islamic" }
-      ],
-      4: [
-        { time: "08:00 - 09:30", subject: "subject_english" },
-        { time: "09:45 - 11:15", subject: "subject_arabic" },
-        { time: "11:30 - 13:00", subject: "goal_sport" }
-      ]
-    },
-    Ahmed: {
-      0: [
-        { time: "08:00 - 09:30", subject: "subject_arabic" },
-        { time: "09:45 - 11:15", subject: "subject_math" },
-        { time: "11:30 - 13:00", subject: "subject_islamic" }
-      ],
-      1: [
-        { time: "08:00 - 09:30", subject: "subject_tamazight" },
-        { time: "09:45 - 11:15", subject: "subject_french" },
-        { time: "11:30 - 13:00", subject: "subject_civic" }
-      ],
-      2: [
-        { time: "08:00 - 09:30", subject: "subject_math" },
-        { time: "09:45 - 11:15", subject: "subject_physics" },
-        { time: "11:30 - 13:00", subject: "subject_history_geo" }
-      ],
-      3: [
-        { time: "08:00 - 09:30", subject: "subject_science" },
-        { time: "09:45 - 11:15", subject: "subject_english" },
-        { time: "11:30 - 13:00", subject: "goal_sport" }
-      ],
-      4: [
-        { time: "08:00 - 09:30", subject: "subject_arabic" },
-        { time: "09:45 - 11:15", subject: "subject_tamazight" },
-        { time: "11:30 - 13:00", subject: "subject_math" }
-      ]
-    }
-  };
+  // Weekly timetable, from the real ScheduleEntry records that the school
+  // portal writes. This used to be a hardcoded two-student timetable (Sara and
+  // Ahmed) that every signed-in youth was shown, and which fell back to
+  // Sara's for anyone not in the map.
+  const schoolSchedule: Record<string, Record<number, { time: string; subject: string }[]>> = {};
+  for (const entry of schedule) {
+    if (entry.day < 0 || entry.day > 4) continue;
+    const bucket = schoolSchedule[entry.sectionId] || (schoolSchedule[entry.sectionId] = {});
+    (bucket[entry.day] || (bucket[entry.day] = [])).push({
+      time: `${entry.startTime} - ${entry.endTime}`,
+      subject: entry.subject,
+    });
+  }
 
-  const activeSchedule = schoolSchedule[studentName] || schoolSchedule["Sara"];
+  const activeSchedule = schoolSchedule[studentName];
 
   const moodEmojis: Record<string, string> = {
     mood_happy: "😊",
@@ -278,14 +241,30 @@ function HomeScreen({
 
         {/* Big GPA Number */}
         <div className="flex items-end justify-end gap-1.5">
-          <span className="text-xs font-bold text-green-500 mb-1">{t("gpa_status_excellent")}</span>
+          {currentGPA !== null && (
+            <span className="text-xs font-bold text-green-500 mb-1">{t("gpa_status_excellent")}</span>
+          )}
           <span className="text-sm text-text-secondary mb-1">/20</span>
-          <span className="text-4xl font-black text-text-primary leading-none">{currentGPA}</span>
+          <span className="text-4xl font-black text-text-primary leading-none">
+            {currentGPA === null ? "--" : currentGPA}
+          </span>
         </div>
 
-        {/* Sparkline Graph */}
+        {/* Sparkline Graph.
+            Plotted from the real recorded GPA snapshots. It used to prepend a
+            hardcoded [10, 12, 11, 14, 15] run, so the "trend" was a fixed
+            invention with the real value pinned to the end. */}
         {(() => {
-          const sparkData = [10, 12, 11, 14, 15, currentGPA];
+          const recorded = studentGpaHistory[studentName] || [];
+          const sparkData =
+            currentGPA === null ? [] : [...recorded, currentGPA];
+          if (sparkData.length === 0) {
+            return (
+              <p className="text-xs text-text-secondary text-center py-4">
+                {t("home_no_gpa_history")}
+              </p>
+            );
+          }
           const svgW = 300;
           const svgH = 70;
           const sparkCoords = sparkData.map((v, i) => ({
@@ -490,7 +469,12 @@ function HomeScreen({
 
           {/* Day's classes details */}
           <div className="flex flex-col gap-2 pt-1">
-            {(activeSchedule[selectedDay] || []).map((item, index) => (
+            {!activeSchedule && (
+              <p className="text-xs text-text-secondary text-center py-4">
+                {t("home_no_schedule")}
+              </p>
+            )}
+            {((activeSchedule && activeSchedule[selectedDay]) || []).map((item, index) => (
               <div
                 key={index}
                 className="flex items-center justify-between p-2.5 rounded-2xl bg-border-custom/10 border border-border-custom/50 hover:bg-border-custom/20 transition-all"
@@ -509,7 +493,11 @@ function HomeScreen({
           </div>
         </div>
 
-        {/* Prayer Times Widget */}
+        {/* Prayer Times Widget.
+            Only rendered when real times are supplied. There is no prayer-time
+            calculation in this project, so the array is empty and this card is
+            hidden rather than showing a hardcoded list as if it were computed. */}
+        {prayerTimes.length > 0 && (
         <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-3">
           <div className="flex justify-between items-center">
             <div>
@@ -550,6 +538,7 @@ function HomeScreen({
             })}
           </div>
         </div>
+        )}
       </div>
 
       {/* Active Goals Checklist */}

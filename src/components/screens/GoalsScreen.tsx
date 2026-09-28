@@ -20,9 +20,10 @@ function GoalsScreen({
   addPoints: (pts: number) => void;
 }) {
   const { userRole, currentUser } = useBloom();
-  // The active student: a logged-in student acts as themselves, otherwise the
-  // parent account runs the student experience as the first/default child.
-  const activeStudentName = userRole === "youth" && currentUser?.name ? currentUser.name : "Sara";
+  // The active student is the signed-in user, or nobody. The old fallback to
+  // "Sara" meant a parent, teacher or admin opening Goals saw and created
+  // goals on a named child's record.
+  const activeStudentName = userRole === "youth" ? currentUser?.name || "" : "";
   // Show shared goals for this child plus legacy goals without an owner.
   const [periodFilter, setPeriodFilter] = useState<GoalPeriod | "all">("all");
   const visibleGoals = goals.filter(g => (!g.studentName || g.studentName === activeStudentName) && (periodFilter === "all" || (g.period ?? "weekly") === periodFilter));
@@ -41,7 +42,9 @@ function GoalsScreen({
 
   const handleAddGoal = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim()) return;
+    // No student resolved means no owner for the goal; refuse rather than
+    // filing it under a placeholder name.
+    if (!newTitle.trim() || !activeStudentName) return;
 
     addGoal(newTitle, newTarget, activeStudentName, newPeriod);
     setNewTitle("");
@@ -63,12 +66,16 @@ function GoalsScreen({
           <h2 className="text-sm font-black text-text-primary">{t("goals_weekly_title")}</h2>
           <p className="text-[11px] text-text-secondary">{t("goals_progress_hint")}</p>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="flex items-center gap-1 bg-primary text-white py-2 px-3.5 rounded-xl text-xs font-black hover:scale-105 active:scale-95 transition-all shadow-xs"
-        >
-          <Plus size={14} /> {t("goals_add_goal")}
-        </button>
+        {/* Only a signed-in child has goals of their own; showing the add
+            affordance to staff would open a form that cannot be submitted. */}
+        {activeStudentName && (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="flex items-center gap-1 bg-primary text-white py-2 px-3.5 rounded-xl text-xs font-black hover:scale-105 active:scale-95 transition-all shadow-xs"
+          >
+            <Plus size={14} /> {t("goals_add_goal")}
+          </button>
+        )}
       </div>
 
       {/* Weekly / Monthly filter */}

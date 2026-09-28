@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { AppLanguage } from "@/context/BloomContext";
+import { SELF_REGISTER_ROLES, type SelfRegisterRole } from "@/lib/auth";
 import { UserRound, Check, Lock, Globe, AlertCircle, Brain } from "lucide-react";
 
 function RegisterScreen({
@@ -22,7 +23,7 @@ function RegisterScreen({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"youth" | "parent" | "psychologist" | "admin">("youth");
+  const [role, setRole] = useState<SelfRegisterRole>("youth");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<boolean>(false);
 
@@ -169,12 +170,15 @@ function RegisterScreen({
               </span>
               <select
                 value={role}
-                onChange={(e) => setRole(e.target.value as any)}
+                onChange={(e) => setRole(e.target.value as SelfRegisterRole)}
                 className={`w-full py-3 ${isRtl ? "pr-11 pl-4" : "pl-11 pr-4"} rounded-2xl bg-surface border border-border-custom focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-text-primary outline-none transition-all appearance-none`}
               >
-                <option value="youth">{t("role_youth")}</option>
-                <option value="parent">{t("role_parent")}</option>
-                <option value="psychologist">{t("role_psychologist")}</option>
+                {/* Built from SELF_REGISTER_ROLES so the list cannot drift from
+                    what register() accepts. "admin" is intentionally absent:
+                    self-registering as an administrator is privilege escalation. */}
+                {SELF_REGISTER_ROLES.map(r => (
+                  <option key={r} value={r}>{t(`role_${r}`)}</option>
+                ))}
               </select>
             </div>
           </div>

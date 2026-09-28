@@ -45,9 +45,10 @@ function ParentScreen({
   const [pinMode, setPinMode] = useState<"enter" | "create">(storedPin ? "enter" : "create");
   const [pin, setPin] = useState<string>("");
   const [pinError, setPinError] = useState<boolean>(false);
-  const [selectedChild, setSelectedChild] = useState<string>(() => {
-    return children[0] || "Sara";
-  });
+  // Empty until a child is actually linked. The old "Sara" fallback meant a
+  // parent with no linked children rendered a full dashboard of another
+  // family's data: grades, journals, behaviour notes and messages.
+  const [selectedChild, setSelectedChild] = useState<string>(() => children[0] || "");
   const [supportText, setSupportText] = useState<string>("");
   const [showToast, setShowToast] = useState<boolean>(false);
   const [linkCode, setLinkCode] = useState<string>("");
@@ -71,9 +72,11 @@ function ParentScreen({
   // more serious failure. Unattributed legacy entries stay visible to staff.
   const childLearningEntries = learningEntries.filter((e) => e.student === selectedChild);
 
-  // Record a real GPA snapshot each time the overview shows a new average
+  // Record a real GPA snapshot each time the overview shows a new average.
+  // Skipped when no child is selected, otherwise an unlinked parent would
+  // write a snapshot under the "" key.
   useEffect(() => {
-    if (!parentAuthenticated || parentView !== "overview") return;
+    if (!parentAuthenticated || parentView !== "overview" || !selectedChild) return;
     recordGpaSnapshot(selectedChild);
   }, [parentAuthenticated, parentView, selectedChild, studentGrades, recordGpaSnapshot]);
 
@@ -124,7 +127,7 @@ function ParentScreen({
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supportText.trim()) return;
+    if (!supportText.trim() || !selectedChild) return;
 
     sendSupportMessage(selectedChild, supportText);
     setSupportText("");
@@ -135,7 +138,7 @@ function ParentScreen({
   // Parent -> school message (item: communicate with teachers/psychologist)
   const handleSendParentMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!parentMsgText.trim()) return;
+    if (!parentMsgText.trim() || !selectedChild) return;
     sendParentMessage({ from: "parent", studentName: selectedChild, content: parentMsgText.trim(), read: false });
     setParentMsgText("");
   };
@@ -143,7 +146,7 @@ function ParentScreen({
   // Shared goals (item: participate in setting goals with the child)
   const handleAddGoal = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!goalTitle.trim()) return;
+    if (!goalTitle.trim() || !selectedChild) return;
     addGoal(goalTitle.trim(), goalTarget, selectedChild);
     setGoalTitle("");
     setGoalTarget(5);
@@ -152,6 +155,7 @@ function ParentScreen({
 
   // Encouragement (item: encourage the child toward their goals)
   const handleEncourage = (goalTitleKey: string) => {
+    if (!selectedChild) return;
     sendSupportMessage(selectedChild, t("parent_encourage_goal", t(goalTitleKey)));
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
@@ -417,6 +421,19 @@ function ParentScreen({
         </div>
       )}
 
+      {/* No child linked yet: every panel below is keyed on a child name, so
+          with no selection they would render one. The link card above is the
+          only useful action in this state. */}
+      {children.length === 0 && (
+        <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-1.5 items-center text-center">
+          <span className="text-base">🔗</span>
+          <p className="text-xs font-bold text-text-primary">{t("parent_no_children_linked")}</p>
+          <p className="text-[10px] text-text-secondary">{t("parent_link_subtitle")}</p>
+        </div>
+      )}
+
+      {children.length > 0 && (
+      <>
       {/* Sub-tab navigation */}
       <div className="flex flex-wrap gap-1.5">
         {([
@@ -969,6 +986,8 @@ function ParentScreen({
           })}
         </div>
       </div>
+      </>
+      )}
     </>
   );
 }

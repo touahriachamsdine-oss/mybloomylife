@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useBloom, StudentGrades } from "@/context/BloomContext";
 import { X, Award, Activity, GraduationCap, LifeBuoy, Send } from "lucide-react";
 
@@ -20,14 +20,31 @@ function PsychologicalScreen({
   const [breathingTimer, setBreathingTimer] = useState<number>(60);
   const [showBreathingComplete, setShowBreathingComplete] = useState<boolean>(false);
   const [helpMessage, setHelpMessage] = useState<string>("");
-  const [helpSent, setHelpSent] = useState<boolean>(false);
+  // Local, so a student can ask again after a second problem - the previous
+  // version flipped this once per mount and the form stayed permanently
+  // replaced by a "sent" panel for the rest of the session, hiding the only
+  // way to request more help.
+  const [lastHelpSentAt, setLastHelpSentAt] = useState<number>(0);
+
+  const [helpConfirmVisible, setHelpConfirmVisible] = useState(false);
+
+  // The confirmation is a 4s acknowledgement, not a state machine. Driving it
+  // from the handler (with a ref-held timer) keeps the form restorable and
+  // avoids a setState-in-effect cascade on every mount.
+  const helpConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (helpConfirmTimer.current) clearTimeout(helpConfirmTimer.current);
+  }, []);
 
   const handleSendHelp = (e: React.FormEvent) => {
     e.preventDefault();
     if (!helpMessage.trim()) return;
     requestHelp(helpMessage.trim());
     setHelpMessage("");
-    setHelpSent(true);
+    setLastHelpSentAt(Date.now());
+    setHelpConfirmVisible(true);
+    if (helpConfirmTimer.current) clearTimeout(helpConfirmTimer.current);
+    helpConfirmTimer.current = setTimeout(() => setHelpConfirmVisible(false), 4000);
   };
 
   // Psychologists only see students the admin assigned to them; otherwise
@@ -40,7 +57,9 @@ function PsychologicalScreen({
       : allStudentNames;
 
   const [newAdvice, setNewAdvice] = useState("");
-  const [adviceStudent, setAdviceStudent] = useState<string>("Sara");
+  // No default student: a psychologist must pick from their own caseload, not
+  // be pre-loaded onto a child the admin may not have assigned them.
+  const [adviceStudent, setAdviceStudent] = useState<string>("");
   const [riskNote, setRiskNote] = useState<string>("");
 
   // Localized student label, falling back to the raw name when the student has
@@ -73,7 +92,9 @@ function PsychologicalScreen({
 
   const handleAddAdvice = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAdvice.trim()) return;
+    // No student selected means the note has no subject; refuse rather than
+    // file clinical advice against an empty or placeholder record.
+    if (!newAdvice.trim() || !adviceStudent) return;
     const currentNotes = guidanceNotes[adviceStudent] || [];
     const updatedNotes = [newAdvice.trim(), ...currentNotes];
     saveAdvice(adviceStudent, updatedNotes);
@@ -142,8 +163,10 @@ function PsychologicalScreen({
     setBreathingActive(false);
   };
 
-  const activeStudentName = (userRole === "youth" && currentUser?.name) ? currentUser.name : "Sara";
-  const activeStudentAdvice = guidanceNotes[activeStudentName] || [];
+  // Resolved from the signed-in child only. The old "Sara" fallback showed a
+  // parent's or staff member's own view of another child's private guidance.
+  const activeStudentName = userRole === "youth" ? currentUser?.name || "" : "";
+  const activeStudentAdvice = activeStudentName ? guidanceNotes[activeStudentName] || [] : [];
 
   // === PSYCHOLOGIST PORTAL ===
   if (userRole === "psychologist") {
@@ -287,12 +310,16 @@ function PsychologicalScreen({
               ))}
             </div>
             <textarea value={newAdvice} onChange={(e) => setNewAdvice(e.target.value)}
-              placeholder={t("psy_advice_placeholder", adviceStudent)}
+              placeholder={adviceStudent ? t("psy_advice_placeholder", displayStudent(adviceStudent)) : t("psy_select_student_first")}
               rows={2} required
               className="w-full p-2.5 rounded-xl border border-border-custom bg-surface text-xs focus:ring-2 focus:ring-primary/20 outline-none resize-none text-text-primary font-semibold" />
-            <button type="submit" className="w-full bg-primary text-white py-2.5 rounded-xl text-xs font-black shadow-xs hover:opacity-90 transition-all">
+            <button type="submit" disabled={!adviceStudent || students.length === 0}
+              className="w-full bg-primary text-white py-2.5 rounded-xl text-xs font-black shadow-xs hover:opacity-90 transition-all disabled:opacity-40">
               {t("psy_post_advice")}
             </button>
+            {students.length === 0 && (
+              <p className="text-[10px] text-text-secondary text-center">{t("psy_no_students")}</p>
+            )}
           </form>
         </div>
 
@@ -523,9 +550,16 @@ function PsychologicalScreen({
               {t("psy_help_title")}
             </h3>
             <p className="text-[10px] text-text-secondary -mt-1.5">{t("psy_help_subtitle")}</p>
-            {helpSent ? (
-              <div className="p-3 rounded-2xl bg-green-500/10 border border-green-500/20 text-center">
+            {helpConfirmVisible ? (
+              <div className="p-3 rounded-2xl bg-green-500/10 border border-green-500/20 text-center flex flex-col gap-2">
                 <p className="text-[11px] font-black text-green-600 dark:text-green-400">{t("psy_help_sent")}</p>
+                <button
+                  type="button"
+                  onClick={() => setHelpConfirmVisible(false)}
+                  className="text-[10px] font-black text-primary underline underline-offset-2"
+                >
+                  {t("psy_help_send_another")}
+                </button>
               </div>
             ) : (
               <form onSubmit={handleSendHelp} className="flex flex-col gap-2">

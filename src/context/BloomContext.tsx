@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from "react";
 import localesData from "../app/locales.json";
 import { BLOOM_KEYS, bloomGetJson, bloomSetJson, bloomGetRaw, bloomSetRaw, bloomRemove, bloomSyncNow, runStorageMigrations } from "@/lib/storage";
-import { verifyPassword, createCredential, seedDemoAccounts, isDemoAccountEmail } from "@/lib/auth";
+import { verifyPassword, createCredential, seedDemoAccounts, isDemoAccountEmail, isUserRole, isSelfRegisterRole, type UserRole, type SelfRegisterRole } from "@/lib/auth";
 import {
   appendMoodLog,
   negativeMoodCountInWindow,
@@ -329,7 +329,7 @@ export interface CustomGame {
 export interface RegisteredUser {
   email: string;
   name: string;
-  role: "youth" | "parent" | "psychologist" | "admin";
+  role: UserRole;
   // Hashed credentials (PBKDF2-SHA256). A legacy `password` field is kept
   // only for accounts saved before hashing was introduced; it is migrated
   // to `salt`/`hash` on the next successful login.
@@ -370,14 +370,14 @@ export interface BloomContextType {
   getKidRemainingMs: () => number;
   
   // Auth state
-  userRole: "youth" | "parent" | "psychologist" | "admin" | null;
+  userRole: UserRole | null;
   currentUser: { email: string; name: string } | null;
   login: (email: string, password: string) => Promise<boolean>;
   register: (
     email: string,
     name: string,
     password: string,
-    role: "parent" | "psychologist" | "admin"
+    role: SelfRegisterRole
   ) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   
@@ -543,7 +543,7 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
 
   // Auth state
-  const [userRole, setUserRoleState] = useState<"youth" | "parent" | "psychologist" | "admin" | null>(null);
+  const [userRole, setUserRoleState] = useState<UserRole | null>(null);
   const [currentUser, setCurrentUserState] = useState<{ email: string; name: string } | null>(null);
 
   // Tick the play-time countdown once per second while a parent is on a student screen
@@ -869,13 +869,18 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedRole) {
       setActiveScreenState(
         savedRole === "admin" ? "admin"
+        : savedRole === "teacher" ? "teacher"
         : savedRole === "parent" ? "parent"
         : savedRole === "psychologist" ? "psychological"
         : "home"
       );
     }
     if (savedGrades) setStudentGradesState(savedGrades);
-    if (savedMoodLogs) setMoodLogsState(savedMoodLogs);
+    // Re-normalise on the hydration path too. The state initialiser already
+    // normalised, but this effect runs afterwards and was writing the raw
+    // stored array straight back in - undoing the cleanup and restoring
+    // entries that had no parseable `at` or no student attribution.
+    if (savedMoodLogs) setMoodLogsState(normalizeMoodLogs(savedMoodLogs));
     if (savedLevels) setStudentLevelsState(savedLevels);
     if (savedLinkedChildren) setLinkedChildrenState(savedLinkedChildren);
     if (savedLevelsConfig) setAlgerianLevels(savedLevelsConfig);
@@ -899,14 +904,21 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedHelpRequests) setHelpRequestsState(savedHelpRequests);
     if (savedDailyChallenges && savedDailyChallenges.date === new Date().toISOString().slice(0, 10)) setDailyChallengesState({ ...savedDailyChallenges, history: savedDailyChallenges.history ?? {} });
     if (savedUsers && savedUsers.length > 0) {
-      // Migrate legacy roles: old "student" -> "youth" and old "teacher" -> "admin"
-      // (the teacher role was merged into the admin/school-management role).
-      // Legacy data may still contain old role strings, so read loosely.
+      // Migrate the legacy "student" role to "youth".
+      //
+      // "teacher" is NO LONGER rewritten to "admin". That rewrite was a
+      // one-way, unrecoverable merge: once an account was rewritten on load it
+      // became indistinguishable from a real administrator, so restoring the
+      // role here could not bring those accounts back. Teacher is a real role
+      // again and existing teacher rows are preserved as-is.
+      //
+      // Unknown role strings fall back to "youth" rather than being trusted,
+      // so a corrupt row cannot grant staff-level access.
       const parsedUsers = savedUsers.map(u => {
-        const role = String(u.role);
-        if (role === "student") return { ...u, role: "youth" as const };
-        if (role === "teacher") return { ...u, role: "admin" as const };
-        return u;
+        const raw = String(u.role);
+        if (raw === "student") return { ...u, role: "youth" as const };
+        if (isUserRole(raw)) return { ...u, role: raw };
+        return { ...u, role: "youth" as const };
       });
       setRegisteredUsers(parsedUsers);
     } else if (DEMO_SEEDING_ENABLED) {
@@ -1017,10 +1029,10 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setActiveScreenState("parent");
     } else if (role === "admin") {
       setActiveScreenState("admin");
+    } else if (role === "teacher") {
+      setActiveScreenState("teacher");
     } else if (role === "psychologist") {
       setActiveScreenState("psychological");
-    } else if (role === "youth") {
-      setActiveScreenState("home");
     } else {
       setActiveScreenState("home");
     }
@@ -1031,7 +1043,7 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     email: string,
     name: string,
     password: string,
-    role: "youth" | "parent" | "psychologist" | "admin"
+    role: SelfRegisterRole
   ): Promise<{ success: boolean; error?: string }> => {
     const emailLower = email.toLowerCase().trim();
     const nameTrimmed = name.trim();
@@ -1042,6 +1054,13 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const exists = registeredUsers.some(u => u.email.toLowerCase() === emailLower);
     if (exists) {
       return { success: false, error: "register_error_exists" };
+    }
+
+    // Re-check the role at runtime, not just at the type level. This function
+    // is reachable with any string, so "admin" (or anything else) could be
+    // persisted by a hand-rolled call even though the signature forbade it.
+    if (!isSelfRegisterRole(role)) {
+      return { success: false, error: "register_error_role" };
     }
 
     const credential = await createCredential(password.trim());
@@ -1343,7 +1362,12 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // ---- Student help requests (surfaced to the parent as an alert) ----
   const requestHelp = (message: string) => {
-    const student = currentUser?.name || "Sara";
+    // A help request is a safeguarding record shown to a parent, so it must
+    // be attributable. The "Sara" fallback meant a request from an anonymous
+    // or staff session was filed against a named child, inventing a distress
+    // signal about that child.
+    const student = currentUser?.name;
+    if (!student) return;
     const r: HelpRequest = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       student,
@@ -1513,7 +1537,13 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentMoodState(mood);
     bloomSetRaw(BLOOM_KEYS.mood, mood);
 
-    const student = currentUser?.name || "Sara";
+    // The student is the signed-in user. There is no "Sara" fallback: a mood
+    // log is a health record attributed to a person, and attributing an
+    // anonymous or staff session's mood to a named child fabricates a data
+    // point about that child. The mood selection itself still applies to the
+    // session, only the history entry is skipped.
+    const student = currentUser?.name;
+    if (!student) return;
     const now = Date.now();
     // Guard against a child tapping an emoji repeatedly manufacturing a trend.
     if (!shouldLogMood(moodLogs, student, mood, now)) return;

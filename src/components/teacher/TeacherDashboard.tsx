@@ -21,14 +21,22 @@ export default function TeacherDashboard({ t, teacher, onNavigate }: Props) {
 
   const classGrades = useMemo(() => {
     const subs = new Set<string>();
-    const rows: { name: string; grades: Record<string, number>; avg: number }[] = [];
+    // avg is number | null: null means "no marks recorded for this student".
+    //
+    // It used to default to 0, which was not a neutral placeholder. A student
+    // with no grades scored 0, counted as failed (0 < 10), and pulled the
+    // class average down - so an ungraded roster looked like a failing class,
+    // and the pass/fail split added every ungraded student to the failures.
+    const rows: { name: string; grades: Record<string, number>; avg: number | null; graded: boolean }[] = [];
 
     students.forEach(name => {
       const gs = studentGrades[name] || {};
       const vals = Object.values(gs);
-      const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+      const avg = vals.length > 0
+        ? vals.reduce((a, b) => a + b, 0) / vals.length
+        : null;
       Object.keys(gs).forEach(k => subs.add(k));
-      rows.push({ name, grades: gs, avg });
+      rows.push({ name, grades: gs, avg, graded: avg !== null });
     });
 
     const subjectList = Array.from(subs);
@@ -37,11 +45,17 @@ export default function TeacherDashboard({ t, teacher, onNavigate }: Props) {
       return { subject: sub, avg: vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0, count: vals.length };
     });
 
-    const classAvg = rows.length > 0 ? rows.reduce((s, r) => s + r.avg, 0) / rows.length : 0;
-    const passed = rows.filter(r => r.avg >= 10).length;
-    const failed = rows.filter(r => r.avg < 10).length;
+    // Averaged over graded students only. Including ungraded ones as 0 was the
+    // other half of the same defect.
+    const gradedRows = rows.filter(r => r.avg !== null);
+    const classAvg = gradedRows.length > 0
+      ? gradedRows.reduce((s, r) => s + (r.avg as number), 0) / gradedRows.length
+      : null;
+    const passed = rows.filter(r => r.avg !== null && (r.avg as number) >= 10).length;
+    const failed = rows.filter(r => r.avg !== null && (r.avg as number) < 10).length;
+    const ungraded = rows.length - gradedRows.length;
 
-    return { classAvg, passed, failed, rows, subjectAvgs };
+    return { classAvg, passed, failed, ungraded, rows, subjectAvgs };
   }, [students, studentGrades]);
 
   const recentMoods = useMemo(() => {
@@ -81,18 +95,20 @@ export default function TeacherDashboard({ t, teacher, onNavigate }: Props) {
           <div className="grid grid-cols-3 gap-2">
             <div className="p-3 rounded-2xl bg-surface border border-border-custom shadow-xs flex flex-col items-center">
               <span className="text-[9px] font-bold text-text-secondary uppercase">{t("teacher_avg")}</span>
-              <span className="text-xl font-black text-primary">{classGrades.classAvg.toFixed(1)}</span>
+              <span className="text-xl font-black text-primary">
+                {classGrades.classAvg === null ? "--" : classGrades.classAvg.toFixed(1)}
+              </span>
               <span className="text-[8px] text-text-secondary">/20</span>
             </div>
             <div className="p-3 rounded-2xl bg-surface border border-border-custom shadow-xs flex flex-col items-center">
               <span className="text-[9px] font-bold text-text-secondary uppercase">{t("teacher_passed")}</span>
               <span className="text-xl font-black text-green-600">{classGrades.passed}</span>
-              <span className="text-[8px] text-text-secondary">/ {students.length}</span>
+              <span className="text-[8px] text-text-secondary">/ {students.length - classGrades.ungraded}</span>
             </div>
             <div className="p-3 rounded-2xl bg-surface border border-border-custom shadow-xs flex flex-col items-center">
               <span className="text-[9px] font-bold text-text-secondary uppercase">{t("teacher_failed")}</span>
               <span className="text-xl font-black text-red-500">{classGrades.failed}</span>
-              <span className="text-[8px] text-text-secondary">/ {students.length}</span>
+              <span className="text-[8px] text-text-secondary">/ {students.length - classGrades.ungraded}</span>
             </div>
           </div>
 
@@ -113,11 +129,14 @@ export default function TeacherDashboard({ t, teacher, onNavigate }: Props) {
             <span className="text-xs font-bold text-text-secondary flex items-center gap-1.5"><Users size={14} /> {t("teacher_student_list")}</span>
             {students.map(name => {
               const row = classGrades.rows.find(r => r.name === name);
+              const avg = row?.avg ?? null;
               return (
                 <div key={name} className="flex items-center justify-between text-xs">
                   <span className="font-bold text-text-primary">{name}</span>
-                  <span className={`font-black ${row && row.avg >= 10 ? "text-green-600" : "text-red-500"}`}>
-                    {row ? row.avg.toFixed(1) : "—"}
+                  {/* An ungraded student is neutral, not failing. The old
+                      ternary painted every null/0 average red. */}
+                  <span className={`font-black ${avg === null ? "text-text-secondary" : avg >= 10 ? "text-green-600" : "text-red-500"}`}>
+                    {avg === null ? "—" : avg.toFixed(1)}
                   </span>
                 </div>
               );

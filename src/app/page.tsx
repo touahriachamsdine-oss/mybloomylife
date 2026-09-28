@@ -91,7 +91,7 @@ import {
 const STUDENT_SCREENS = ["home", "academic", "games", "psychological", "learning", "gratitude", "goals", "planner", "portfolio"];
 
 // Screens addressable via the URL (deep links + browser back button).
-const SCREEN_ROUTES = ["home", "academic", "games", "psychological", "learning", "gratitude", "goals", "planner", "portfolio", "parent", "admin"];
+const SCREEN_ROUTES = ["home", "academic", "games", "psychological", "learning", "gratitude", "goals", "planner", "portfolio", "parent", "admin", "teacher"];
 
 // Keeps activeScreen in sync with the ?screen= URL param. Navigation through
 // setActiveScreen pushes a new URL; the browser back button adopts the URL.
@@ -184,7 +184,10 @@ function App() {
   // for a daily budget (30 min weekdays / 1 hour weekends).
   const onStudentScreen = STUDENT_SCREENS.includes(activeScreen);
   const kidTimeLocked = userRole === "parent" && onStudentScreen && kidRemainingMs <= 0;
-  const displayName = currentUser?.name || "Sara";
+  // Shown as the signed-in user's name in the header and drawer. No "Sara"
+  // fallback: with no user it rendered a real person's name and initial for
+  // whoever was looking.
+  const displayName = currentUser?.name || "";
   // A youth's role badge reflects their chosen subclass (cycle). Both the
   // "moyen" (الطور المتوسط) and "lycee" (الطور الثانوي) pupils share the full
   // youth feature set, so only the label differs.
@@ -201,9 +204,11 @@ function App() {
       : t("role_" + userRole)
     : "";
 
-  // Intercept: show level picker for students who haven't chosen a level yet
-  const studentName = currentUser?.name || "Sara";
-  const needsLevelPick = userRole === "youth" && !studentLevels[studentName];
+  // Intercept: show level picker for students who haven't chosen a level yet.
+  // Keyed on the real signed-in name; an empty key would read the phantom
+  // "" student off the lookup tables.
+  const studentName = currentUser?.name || "";
+  const needsLevelPick = userRole === "youth" && !!currentUser?.name && !studentLevels[studentName];
 
   // School-management sub-view (admin owns the former teacher portal)
   const [teacherView, setTeacherView] = useState("dashboard");
@@ -430,8 +435,8 @@ function App() {
                       </div>
                     </div>
                     {/* Show school level + family code for students */}
-                    {userRole === "youth" && (() => {
-                      const sName = currentUser?.name || "Sara";
+                    {userRole === "youth" && !!currentUser?.name && (() => {
+                      const sName = currentUser!.name!;
                       const level = studentLevels[sName];
                       const code = familyLinkCodes[sName];
                       return (
@@ -456,7 +461,12 @@ function App() {
                   {/* Navigation Links */}
                   <nav className="flex flex-col gap-1">
                     {(() => {
-                      let items: { id: string; label: string; icon: React.ReactNode }[] = [];
+                      // `meta` distinguishes several items that share one screen
+                      // id (a parent's six tabs, an admin's dashboard, the five
+                      // teacher views). Typed rather than cast to `any` so a
+                      // typo in a meta value is a compile error.
+                      type NavItem = { id: string; label: string; icon: React.ReactNode; meta?: string };
+                      let items: NavItem[] = [];
                       if (userRole === "youth") {
                         items = [
                           { id: "home", label: t("nav_home"), icon: <HomeIcon size={18} /> },
@@ -477,7 +487,7 @@ function App() {
                           { id: "parent", label: t("parent_goals_title"), icon: <Target size={18} />, meta: "goals" },
                           { id: "parent", label: t("parent_messages_title"), icon: <MessageSquare size={18} />, meta: "messages" },
                           { id: "parent", label: t("parent_reports_title"), icon: <FileText size={18} />, meta: "reports" },
-                        ] as any);
+                        ] satisfies NavItem[]);
                       } else if (userRole === "psychologist") {
                         items = [
                           { id: "psychological", label: t("nav_psychological"), icon: <Heart size={18} /> }
@@ -487,10 +497,21 @@ function App() {
                           { id: "admin", label: t("admin_title"), icon: <Shield size={18} />, meta: "dashboard" },
                           { id: "admin", label: t("school_management"), icon: <BarChart3 size={18} />, meta: "school" },
                           { id: "academic", label: t("nav_academic"), icon: <TrendingUp size={18} /> },
-                        ] as any);
+                        ] satisfies NavItem[]);
+                      } else if (userRole === "teacher") {
+                        // Restored teacher portal. All items share the "teacher"
+                        // screen id and are distinguished by meta, which is the
+                        // same shape the pre-merge code used.
+                        items = [
+                          { id: "teacher", label: t("teacher_dashboard"), icon: <BarChart3 size={18} />, meta: "dashboard" },
+                          { id: "teacher", label: t("teacher_attendance"), icon: <Users size={18} />, meta: "attendance" },
+                          { id: "teacher", label: t("teacher_behavior"), icon: <MessageSquare size={18} />, meta: "behavior" },
+                          { id: "teacher", label: t("teacher_schedule"), icon: <Clock size={18} />, meta: "schedule" },
+                          { id: "teacher", label: t("teacher_messages"), icon: <BookOpen size={18} />, meta: "messages" },
+                        ];
                       }
                       return items.map((item) => {
-                        const meta = (item as any).meta;
+                        const meta = item.meta;
                         const isActive =
                           userRole === "admin" && meta
                             ? activeScreen === item.id && ((meta === "school" && adminView === "school") || (meta !== "school" && adminView === "dashboard"))
@@ -499,7 +520,7 @@ function App() {
                               : activeScreen === item.id && (!meta || meta === teacherView);
                         return (
                           <button
-                            key={item.id + ((item as any).meta || "")}
+                            key={item.id + (item.meta || "")}
                             onClick={() => {
                               setActiveScreen(item.id);
                               if (meta) {
@@ -507,7 +528,7 @@ function App() {
                                   setAdminView(meta === "school" ? "school" : "dashboard");
                                   if (meta === "school") setTeacherView("dashboard");
                                 } else if (userRole === "parent") {
-                                  setRequestedParentView(meta as string);
+                                  setRequestedParentView(meta);
                                 } else {
                                   setTeacherView(meta);
                                 }
@@ -636,6 +657,19 @@ function App() {
                   default: return <TeacherDashboard {...subProps} />;
                 }
               })() : <AdminDashboardScreen t={t} />)}
+              {activeScreen === "teacher" && (() => {
+                const subProps = { t, teacher: teacherData, onNavigate: (to: string) => {
+                  if (to === "back") setTeacherView("dashboard");
+                  else setTeacherView(to);
+                }};
+                switch (teacherView) {
+                  case "attendance": return <AttendanceTracker {...subProps} />;
+                  case "behavior": return <BehaviorNotesView {...subProps} />;
+                  case "schedule": return <TeacherSchedule {...subProps} />;
+                  case "messages": return <ParentMessagesView {...subProps} />;
+                  default: return <TeacherDashboard {...subProps} />;
+                }
+              })()}
               {activeScreen === "academic" && <AcademicScreen t={t} />}
               {activeScreen === "games" && <GamesScreen t={t} addPoints={addPoints} userPoints={userPoints} />}
               {activeScreen === "psychological" && <PsychologicalScreen t={t} currentMood={currentMood} setCurrentMood={setCurrentMood} addPoints={addPoints} />}
