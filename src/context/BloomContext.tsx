@@ -574,32 +574,12 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [userRole, activeScreen]);
 
-  // Grades state (Algerian subjects & 20-point scale grades)
-  const [studentGrades, setStudentGradesState] = useState<Record<string, StudentGrades>>({
-    Sara: {
-      subject_math: 16.5,
-      subject_physics: 15.0,
-      subject_science: 14.5,
-      subject_arabic: 16.0,
-      subject_french: 14.0,
-      subject_english: 15.5,
-      subject_islamic: 17.0,
-      subject_history_geo: 14.0,
-      subject_philosophy: 13.5
-    },
-    Ahmed: {
-      subject_math: 14.0,
-      subject_physics: 13.0,
-      subject_science: 15.0,
-      subject_arabic: 15.5,
-      subject_tamazight: 16.0,
-      subject_french: 12.5,
-      subject_english: 13.0,
-      subject_islamic: 16.5,
-      subject_history_geo: 14.0,
-      subject_civic: 15.0
-    }
-  });
+  // Grades state (Algerian subjects & 20-point scale grades).
+  // Starts EMPTY. This used to be initialised with 19 invented marks for two
+  // students who were also hardcoded as the entire roster. The seeding gate
+  // only guards the *persistence* path, so an initial value here is never
+  // overwritten in production - the fabrication rendered on every fresh load.
+  const [studentGrades, setStudentGradesState] = useState<Record<string, StudentGrades>>({});
 
   // Real per-student GPA trend snapshots (recorded when a new GPA is reached)
   const [gpaHistory, setGpaHistoryState] = useState<Record<string, number[]>>({});
@@ -682,10 +662,9 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [dailyChallenges.history]);
 
   // Algerian level state (persisted)
-  const [studentLevels, setStudentLevelsState] = useState<Record<string, AlgerianLevel | null>>({
-    Sara: null,
-    Ahmed: null
-  });
+  // Levels chosen per student. Starts empty: the keys were "Sara"/"Ahmed",
+  // which invented two students in every Object.keys() iteration of this map.
+  const [studentLevels, setStudentLevelsState] = useState<Record<string, AlgerianLevel | null>>({});
 
   // Default Algerian levels configuration
   const defaultLevels: AlgerianCycleConfig[] = [
@@ -724,10 +703,12 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [algerianLevels, setAlgerianLevels] = useState<AlgerianCycleConfig[]>(defaultLevels);
   const [customGames, setCustomGames] = useState<CustomGame[]>([]);
 
-  const [familyLinkCodes, setFamilyLinkCodes] = useState<Record<string, string>>({
-    Sara: "BLM-7X4",
-    Ahmed: "BLM-9K2"
-  });
+  // Family link codes, keyed by student name. Starts empty.
+  // This was hardcoded to {Sara:"BLM-7X4", Ahmed:"BLM-9K2"} with no seeded
+  // counterpart, so in production every visitor was offered those two codes to
+  // link a parent account to a named child. Codes are now issued only by
+  // addStudent/regenerateFamilyCode for a student that really exists.
+  const [familyLinkCodes, setFamilyLinkCodes] = useState<Record<string, string>>({});
 
   // Parent's linked children list (persisted)
   const [linkedChildren, setLinkedChildrenState] = useState<string[]>([]);
