@@ -12,6 +12,10 @@ export const BLOOM_KEYS = {
   language: "bloom_language",
   mood: "bloom_mood",
   points: "bloom_points",
+  // Points are earned per student. The old "bloom_points" key held a single
+  // shared number that every account on the device drew from; it is now only
+  // read once, to discard it (see BloomContext hydration).
+  pointsByStudent: "bloom_points_by_student",
   goals: "bloom_goals",
   supportMessages: "bloom_support_messages",
   userRole: "bloom_user_role",

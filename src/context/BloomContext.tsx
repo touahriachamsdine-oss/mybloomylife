@@ -519,9 +519,13 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Global States
   const [appLanguage, setAppLanguageState] = useState<AppLanguage>("ar");
   const [currentMood, setCurrentMoodState] = useState<string>("mood_calm");
-  // Starts at zero. This was seeded with 2350, so every new account opened with
-  // an invented score that no activity had earned.
-  const [userPoints, setUserPointsState] = useState<number>(0);
+  // Points are earned per student, keyed by signed-in name, and start at zero.
+  // This was seeded with 2350, so every new account opened with an invented
+  // score that no activity had earned, and it was then stored as a single
+  // shared number: every account on the device drew from the same pool, so one
+  // child playing a game inflated another's score and the points widget showed
+  // a total belonging to nobody in particular.
+  const [studentPoints, setStudentPointsState] = useState<Record<string, number>>({});
   const [goals, setGoalsState] = useState<Goal[]>([]);
   const [activeScreen, setActiveScreenState] = useState<string>("home");
   const [drawerOpen, setDrawerOpenState] = useState<boolean>(false);
@@ -545,6 +549,13 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Auth state
   const [userRole, setUserRoleState] = useState<UserRole | null>(null);
   const [currentUser, setCurrentUserState] = useState<{ email: string; name: string } | null>(null);
+
+  // The signed-in student's name, and their own points derived from it. Every
+  // per-student record in this context is keyed by this same value. With no
+  // signed-in student there is no key to read, so the derived value is 0 and
+  // writes are refused rather than landing in a shared bucket.
+  const studentName = currentUser?.name;
+  const userPoints = studentName ? studentPoints[studentName] ?? 0 : 0;
 
   // Tick the play-time countdown once per second while a parent is on a student screen
   const kidTicksRef = useRef<number>(0);
@@ -834,7 +845,12 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Load from localStorage if present
     const savedLang = bloomGetRaw(BLOOM_KEYS.language) as AppLanguage | null;
     const savedMood = bloomGetRaw(BLOOM_KEYS.mood);
-    const savedPoints = bloomGetRaw(BLOOM_KEYS.points);
+    const savedStudentPoints = bloomGetJson<Record<string, number> | null>(BLOOM_KEYS.pointsByStudent, null);
+    // Read only so it can be discarded. The value was a single shared total, so
+    // there is no correct student to attribute it to. Copying it onto every
+    // account would invent a score for children who never earned it, and it is
+    // removed rather than kept where something might pick it up again.
+    const legacySharedPoints = bloomGetRaw(BLOOM_KEYS.points);
     const savedGoals = bloomGetJson<Goal[] | null>(BLOOM_KEYS.goals, null);
     const savedSupport = bloomGetJson<SupportMessage[] | null>(BLOOM_KEYS.supportMessages, null);
     const savedRole = bloomGetRaw(BLOOM_KEYS.userRole) as any;
@@ -860,7 +876,18 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (savedLang) setAppLanguageState(savedLang);
     if (savedMood) setCurrentMoodState(savedMood);
-    if (savedPoints) setUserPointsState(parseInt(savedPoints, 10));
+    // Only trust well-formed entries: a non-finite or negative value here would
+    // be surfaced as a score no activity could produce.
+    if (savedStudentPoints) {
+      const clean: Record<string, number> = {};
+      for (const [student, value] of Object.entries(savedStudentPoints)) {
+        if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+          clean[student] = Math.floor(value);
+        }
+      }
+      setStudentPointsState(clean);
+    }
+    if (legacySharedPoints !== null) bloomRemove(BLOOM_KEYS.points);
     if (savedRole) setUserRoleState(savedRole);
     if (savedUser) setCurrentUserState(savedUser);
     // Restore a role-appropriate start screen so reloads don't dump non-youth
@@ -1552,10 +1579,23 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     bloomSetJson(BLOOM_KEYS.moodLogs, next);
   };
 
+  // Attribution happens here rather than at each call site. addPoints is handed
+  // to ~14 game components as a bare (points: number) => void, so resolving the
+  // student in the provider keeps every caller unchanged and leaves no path that
+  // can award points to the wrong account.
   const addPoints = (points: number) => {
-    const nextPoints = userPoints + points;
-    setUserPointsState(nextPoints);
-    bloomSetRaw(BLOOM_KEYS.points, String(nextPoints));
+    const student = currentUser?.name;
+    // No signed-in student, so there is nobody to credit. Silently adding to a
+    // shared bucket is what this replaced.
+    if (!student) return;
+    if (!Number.isFinite(points)) return;
+
+    setStudentPointsState((prev) => {
+      const nextTotal = Math.max(0, (prev[student] ?? 0) + Math.floor(points));
+      const next = { ...prev, [student]: nextTotal };
+      bloomSetJson(BLOOM_KEYS.pointsByStudent, next);
+      return next;
+    });
   };
 
   const addGoal = (title: string, target: number, studentName?: string, period: GoalPeriod = "weekly") => {
