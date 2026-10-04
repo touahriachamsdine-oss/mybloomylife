@@ -826,7 +826,9 @@
     "parent_weekday_1": "Monday",
     "parent_weekday_2": "Tuesday",
     "parent_weekday_3": "Wednesday",
-    "parent_weekday_4": "Thursday"
+    "parent_weekday_4": "Thursday",
+    "teacher_no_sections": "You have no classes yet. Once you are added to a section, your students and their results appear here.",
+    "loading": "Loading…"
   },
   "ar": {
     "app_name": "My Bloomy Life",
@@ -1655,7 +1657,9 @@
     "parent_weekday_1": "الاثنين",
     "parent_weekday_2": "الثلاثاء",
     "parent_weekday_3": "الأربعاء",
-    "parent_weekday_4": "الخميس"
+    "parent_weekday_4": "الخميس",
+    "teacher_no_sections": "ليس لديك أي قسم بعد. بمجرد إضافتك إلى قسم، سيظهر طلابك ونتائجهم هنا.",
+    "loading": "جارٍ التحميل…"
   },
   "fr": {
     "app_name": "My Bloomy Life",
@@ -2484,7 +2488,9 @@
     "parent_weekday_1": "Lundi",
     "parent_weekday_2": "Mardi",
     "parent_weekday_3": "Mercredi",
-    "parent_weekday_4": "Jeudi"
+    "parent_weekday_4": "Jeudi",
+    "teacher_no_sections": "Vous n'avez pas encore de classes. Une fois ajouté à une section, vos élèves et leurs résultats apparaîtront ici.",
+    "loading": "Chargement…"
   },
   "kab": {
     "app_name": "My Bloomy Life",
@@ -3313,6 +3319,8 @@
     "parent_weekday_1": "Arim",
     "parent_weekday_2": "Aram",
     "parent_weekday_3": "Ahad",
-    "parent_weekday_4": "Aamhas"
+    "parent_weekday_4": "Aamhas",
+    "teacher_no_sections": "Ur has ula tinmirt akken. Ma yerned-ik-d yebṭen, ad araw iṭṭden-im dṭṭanek dṭ resultate-k hun.",
+    "loading": "Yettẑẑa…"
   }
 }

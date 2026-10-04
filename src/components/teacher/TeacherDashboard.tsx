@@ -88,6 +88,16 @@ export default function TeacherDashboard({ t, teacher, onNavigate }: Props) {
             </button>
           ))}
         </div>
+
+        {/* A teacher with no classes previously got this card and nothing else:
+            the section tabs rendered empty and every panel below was gated on a
+            selected section, so the whole dashboard was a title with no
+            explanation of why it was empty. */}
+        {teacher.sections.length === 0 && (
+          <p className="text-xs text-text-secondary leading-relaxed">
+            {t("teacher_no_sections")}
+          </p>
+        )}
       </div>
 
       {section && (

@@ -58,9 +58,13 @@ export async function upsertRows(rows: SyncRow[]): Promise<number> {
   if (!sql || rows.length === 0) return 0;
   const ids = rows.map((r) => r.key);
   const vals = rows.map((r) => r.value);
+  // The arrays must be cast to text[]. Without an explicit cast the driver
+  // sends them as untyped parameters and Postgres cannot choose an overload:
+  //   ERROR: function pg_catalog.unnest(unknown) is not unique
+  // which surfaced as /api/sync returning 500 db_error on every read and write.
   await sql`
     INSERT INTO bloom_state (id, value, updated_at)
-    SELECT id, value, now() FROM UNNEST(${ids}, ${vals}) AS t(id, value)
+    SELECT id, value, now() FROM UNNEST(${ids}::text[], ${vals}::text[]) AS t(id, value)
     ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
   `;
   return ids.length;

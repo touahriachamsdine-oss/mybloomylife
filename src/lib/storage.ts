@@ -193,6 +193,13 @@ export function bloomImportAll(data: Record<string, string>): void {
 
 const SYNC_ENDPOINT = "/api/sync";
 const FLUSH_DEBOUNCE_MS = 900;
+// Every request to the sync endpoint is bounded. These fetches previously had no
+// timeout and no AbortSignal, so a request that hung rather than failed left the
+// caller awaiting forever - and since the app's first paint was gated on the
+// hydration request, that meant a permanently blank page. The server itself can
+// block for ~10s waiting on a database connect timeout, so this is set above
+// that worst case rather than below it.
+const SYNC_TIMEOUT_MS = 15000;
 
 // Keys that have changed locally but not yet been pushed to the server.
 const pendingSync = new Map<string, string>();
@@ -218,6 +225,7 @@ async function flushPending(): Promise<void> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rows }),
+      signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`sync status ${res.status}`);
   } catch (e) {
@@ -244,6 +252,7 @@ async function postRows(rows: { key: string; value: string }[]): Promise<void> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ rows }),
+    signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`sync status ${res.status}`);
 }
@@ -263,18 +272,30 @@ export async function bloomHydrateFromServer(): Promise<void> {
   if (typeof window === "undefined") return;
   let remote: Record<string, string> = {};
   try {
-    const res = await fetch(SYNC_ENDPOINT);
+    const res = await fetch(SYNC_ENDPOINT, { signal: AbortSignal.timeout(SYNC_TIMEOUT_MS) });
     if (res.ok) {
       const json = await res.json();
       remote = json.state || {};
     }
   } catch {
-    // No connectivity: keep local data; app still works offline.
+    // No connectivity, or the request timed out: keep local data; the app still
+    // works offline. This must never reject, because the app's first paint is
+    // gated on it settling.
   }
 
+  // The session (who is logged in, and what role they have) is per-device
+  // state. It must never travel to the shared server store in EITHER direction:
+  // uploading would publish a user's name and email into a store every client
+  // can read, and downloading would let one account's session overwrite
+  // another's.
+  const SESSION_KEYS = new Set<string>([BLOOM_KEYS.userRole, BLOOM_KEYS.currentUser]);
+
   // Upload local-only keys (e.g. first-run seeds on a brand-new device).
+  // Session keys are excluded here too: previously only the merge below
+  // filtered them, so a signed-in user's identity was POSTed to the shared
+  // store on every first load.
   const local = bloomExportAll();
-  const localOnly = Object.entries(local).filter(([key]) => !(key in remote));
+  const localOnly = Object.entries(local).filter(([key]) => !(key in remote) && !SESSION_KEYS.has(key));
   if (localOnly.length > 0) {
     try {
       await postRows(localOnly.map(([key, value]) => ({ key, value })));
@@ -283,10 +304,7 @@ export async function bloomHydrateFromServer(): Promise<void> {
     }
   }
 
-  // Server wins for keys it already knows about — EXCEPT the session itself
-  // (who is logged-in on this device). The session is per-device state, and a
-  // shared remote store must not overwrite it across devices/accounts.
-  const SESSION_KEYS = new Set<string>([BLOOM_KEYS.userRole, BLOOM_KEYS.currentUser]);
+  // Server wins for keys it already knows about — EXCEPT the session itself.
   for (const [key, value] of Object.entries(remote)) {
     if (SESSION_KEYS.has(key)) continue;
     if (key === BLOOM_KEYS.registeredUsers) {

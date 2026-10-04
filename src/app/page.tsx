@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useBloom, AppLanguage, Goal, AlgerianLevel, AlgerianCycle, SUBJECTS_BY_CYCLE, ParentAlert, getKidDailyLimitMs } from "@/context/BloomContext";
 import { useTeacherData } from "@/context/teacher";
-import { bloomExportAll, bloomImportAll, bloomHydrateFromServer } from "@/lib/storage";
+import { bloomExportAll, bloomImportAll, bloomHydrateFromServer, bloomGetRaw, BLOOM_KEYS } from "@/lib/storage";
+import localesData from "@/app/locales.json";
 import { formatKidTime } from "@/lib/format";
 import TeacherDashboard from "@/components/teacher/TeacherDashboard";
 import AttendanceTracker from "@/components/teacher/AttendanceTracker";
@@ -741,6 +742,13 @@ function App() {
 }
 
 // useSearchParams requires a Suspense boundary in production builds.
+//
+// While the server sync settles, show a loading screen rather than null. This
+// used to render `null`, which meant the entire first paint was a blank white
+// page for as long as the hydration request took - measured at 2.2s when the
+// sync failed quickly and 10.7s when it waited out a database connect timeout.
+// The hydration fetch is now bounded by AbortSignal so this state always ends,
+// but a blank page is not an acceptable loading state even for a bounded wait.
 export default function RootPage() {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
@@ -750,6 +758,39 @@ export default function RootPage() {
     <Suspense fallback={null}>
       <App />
     </Suspense>
-  ) : null;
+  ) : (
+    <LoadingScreen />
+  );
+}
+
+function LoadingScreen() {
+  const label = loadingLabel();
+  return (
+    <div
+      className="min-h-screen flex flex-col items-center justify-center gap-4 font-sans"
+      style={{ background: 'linear-gradient(145deg, var(--bg-start) 0%, var(--bg-mid) 50%, var(--bg-end) 100%)' }}
+      role="status"
+      aria-live="polite"
+      aria-label={label}
+      data-testid="app-loading"
+    >
+      <div className="w-10 h-10 rounded-full border-4 border-white/30 border-t-white animate-spin" />
+      <p className="text-sm text-white/80">{label}</p>
+    </div>
+  );
+}
+
+// This screen renders before BloomProvider exists, so it cannot use the
+// context's `t`. Resolve the saved language straight from storage instead, with
+// "ar" as the default so it matches BloomContext's own default language and the
+// first paint does not flash English before the app settles.
+function loadingLabel(): string {
+  const saved = bloomGetRaw(BLOOM_KEYS.language) as AppLanguage | null;
+  // Object.hasOwn, not `in`: a corrupt storage value such as "toString"
+  // passes an `in` check via the prototype chain and would resolve to a
+  // function instead of a language pack.
+  const packs = localesData as Record<string, Record<string, string>>;
+  const lang: AppLanguage = saved && Object.hasOwn(packs, saved) ? saved : "ar";
+  return packs[lang]?.loading ?? packs.en.loading;
 }
 
