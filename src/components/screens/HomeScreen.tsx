@@ -23,7 +23,7 @@ function HomeScreen({
   currentMood: string;
   setActiveScreen: (s: string) => void;
 }) {
-  const { currentUser, studentGrades, userRole, dailyChallenges, toggleDailyChallenge, challengeStreak, challengeBestStreak, schedule, gpaHistory: studentGpaHistory } = useBloom();
+  const { currentUser, studentGrades, userRole, dailyChallenges, toggleDailyChallenge, challengeStreak, challengeBestStreak, schedule, teacherSections, gpaHistory: studentGpaHistory } = useBloom();
   const [moodTip, setMoodTip] = useState<string | null>(null);
   const [celebrateGoalId, setCelebrateGoalId] = useState<string | null>(null);
 
@@ -116,7 +116,16 @@ function HomeScreen({
     });
   }
 
-  const activeSchedule = schoolSchedule[studentName];
+  // The map is keyed by section id ("1am_a"), so it has to be read with the
+  // signed-in student's *section*, not their name. Looking it up by name meant
+  // this was always undefined and every student saw "no schedule" regardless
+  // of what the school portal had actually set. Membership in
+  // teacherSections is the link; registration and addStudentToSection both
+  // maintain it.
+  const studentSection = studentName
+    ? teacherSections.find((s) => s.studentNames.includes(studentName))?.id
+    : undefined;
+  const activeSchedule = studentSection ? schoolSchedule[studentSection] : undefined;
 
   const moodEmojis: Record<string, string> = {
     mood_happy: "😊",
