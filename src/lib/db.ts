@@ -17,10 +17,13 @@ export const sql = isServer && url ? neon(url) : null;
 let schemaEnsured = false;
 
 // Create the single sync table on first use so there is no manual migration step.
+//
+// auth_codes backs OTP login/registration. It lives in its own table, NOT in
+// bloom_state, because GET /api/sync returns every row of bloom_state to any
+// caller - storing a verification code there would hand it to anyone who asks.
 export async function ensureSchema(): Promise<boolean> {
   if (!sql) return false;
   if (schemaEnsured) return true;
-  schemaEnsured = true;
   try {
     await sql`
       CREATE TABLE IF NOT EXISTS bloom_state (
@@ -32,6 +35,22 @@ export async function ensureSchema(): Promise<boolean> {
     await sql`
       CREATE INDEX IF NOT EXISTS bloom_state_updated_idx ON bloom_state (updated_at)
     `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS auth_codes (
+        email        TEXT PRIMARY KEY,
+        code_hash    TEXT NOT NULL,
+        purpose      TEXT NOT NULL,
+        expires_at   TIMESTAMPTZ NOT NULL,
+        attempts     INTEGER NOT NULL DEFAULT 0,
+        last_sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+    // Only mark the schema as present once DDL actually succeeded. Setting the
+    // flag before the try meant a single failure (this DB is intermittently
+    // unreachable) poisoned the module for its whole lifetime: every later call
+    // returned true without having created the tables, so writes then failed
+    // against relations that never existed.
+    schemaEnsured = true;
     return true;
   } catch (e) {
     console.error("[db] ensureSchema failed:", e);

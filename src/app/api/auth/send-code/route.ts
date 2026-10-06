@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import nodemailer from "nodemailer";
-import { issueCode } from "@/lib/code-store";
+import { issueCode, discardCode } from "@/lib/code-store";
 
 export const runtime = "nodejs";
 
@@ -59,16 +59,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ ok: false, error: "invalid_email" }, { status: 400 });
   }
 
-  const code = issueCode(email, purpose);
-
-  const sent = await sendViaGmail(email, code);
-  if (sent) return Response.json({ ok: true });
-
-  // If Gmail credentials are configured but the send failed, surface the error
-  // instead of silently falling back, so config problems are easy to debug.
-  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-    return Response.json({ ok: false, error: "send_failed" }, { status: 502 });
-  }
+  const gmailConfigured = !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
 
   // Unconfigured mail transport.
   //
@@ -76,15 +67,45 @@ export async function POST(request: NextRequest) {
   // code in the response body, which let anyone request a code for any address
   // and complete a login without ever receiving an email - the code in the
   // response was a complete bypass of the verification step.
-  if (process.env.NODE_ENV === "production") {
+  //
+  // Checked BEFORE issueCode so an undeliverable code is never persisted: it
+  // would otherwise hold the send cooldown for 10 minutes and block every later
+  // attempt by the legitimate user.
+  if (!gmailConfigured && process.env.NODE_ENV === "production") {
     console.error(
       "[My Bloomy Life] GMAIL_USER / GMAIL_APP_PASSWORD are not set; refusing to issue a code."
     );
     return Response.json({ ok: false, error: "email_unavailable" }, { status: 503 });
   }
 
+  const issued = await issueCode(email, purpose);
+
+  if (!issued.issued) {
+    if (issued.reason === "too_many_requests") {
+      // Per-address cooldown, returned as 429 so callers can tell throttling
+      // apart from a transport failure.
+      return Response.json({ ok: false, error: "too_many_requests" }, { status: 429 });
+    }
+    // The code store is configured but unreachable. Do not issue a code we
+    // could not verify: better a visible failure than a code the user types
+    // and that never validates.
+    return Response.json({ ok: false, error: "storage_unavailable" }, { status: 503 });
+  }
+
+  const code = issued.code as string;
+
   // Development only: no provider configured. Log the code so the flow can be
   // tested locally. The code is deliberately not returned to the caller.
-  console.log(`[My Bloomy Life] Verification code for ${email} (${purpose}): ${code}`);
-  return Response.json({ ok: true });
+  if (!gmailConfigured) {
+    console.log(`[My Bloomy Life] Verification code for ${email} (${purpose}): ${code}`);
+    return Response.json({ ok: true });
+  }
+
+  const sent = await sendViaGmail(email, code);
+  if (sent) return Response.json({ ok: true });
+
+  // The email never left: clear the stored code so the user can retry at once
+  // instead of waiting out a cooldown for a code they never received.
+  await discardCode(email);
+  return Response.json({ ok: false, error: "send_failed" }, { status: 502 });
 }
