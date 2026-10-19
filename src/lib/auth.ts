@@ -113,6 +113,22 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   { email: "yamina@example.com", name: "Yamina", role: "youth", password: "123" },
   { email: "maman@example.com", name: "Abu Yamina", role: "parent", password: "1234" },
   { email: "drmeriem@example.com", name: "Dr. Meriem", role: "psychologist", password: "123" },
+
+  // One test account per role so every portal can be exercised from a normal
+  // login screen. The original fixture had no teacher at all, which is why the
+  // teacher view could previously only be reached by seeding localStorage.
+  //
+  // These deliberately live in DEMO_ACCOUNTS rather than in a separate list:
+  // this is the array isDemoAccountEmail() checks (so production refuses them
+  // even if a row already exists in the database) and the array ensureDemoUsers()
+  // seeds from (so they appear on a fresh dev run). Keeping them out of
+  // DEMO_ACCOUNTS would make them ordinary accounts with a published password
+  // and no production gate at all.
+  { email: "test.youth@example.com", name: "Test Youth", role: "youth", password: "test1234" },
+  { email: "test.parent@example.com", name: "Test Parent", role: "parent", password: "test1234" },
+  { email: "test.teacher@example.com", name: "Test Teacher", role: "teacher", password: "test1234" },
+  { email: "test.psychologist@example.com", name: "Test Psychologist", role: "psychologist", password: "test1234" },
+  { email: "test.admin@example.com", name: "Test Admin", role: "admin", password: "test1234" },
 ];
 
 /**
