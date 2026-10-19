@@ -111,6 +111,21 @@ export function bloomSetJson(key: string, value: unknown): void {
   enqueueSync(key, JSON.stringify(value));
 }
 
+// Structured write that does NOT mirror to the server.
+//
+// Needed for first-run demo seeding: that fixture is a local fallback for this
+// device only, and the server seeds its own copy (ensureDemoUsers). Letting a
+// cold client push its locally-invented list is what allowed one empty browser
+// to truncate the SHARED account table - every account it did not happen to
+// hold, including real registrations from other people, was overwritten.
+export function bloomSetJsonLocal(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore storage errors (quota / privacy mode)
+  }
+}
+
 // Runs once per STORAGE_VERSION bump. Legacy bloom_* keys keep their names
 // so previously stored data survives; migrations fix shape when needed.
 export function runStorageMigrations(): void {
@@ -266,9 +281,56 @@ function emailOfUser(user: unknown): string {
   return typeof email === "string" ? email.toLowerCase().trim() : "";
 }
 
+// Whether the boot-time hydration has settled. Consumers that read storage in
+// their own initial effect run BEFORE hydration finishes - BloomProvider lives
+// in the layout, above the page whose first paint is gated on hydration - so
+// their state starts from pre-hydration storage. The account list is the one
+// that bites: login() reads it from React state, so a client that had not yet
+// received the merged list rejected every valid credential until a reload.
+let hydrationSettled = false;
+const hydrationListeners = new Set<() => void>();
+
+export function bloomHasHydrated(): boolean {
+  return hydrationSettled;
+}
+
+export function bloomOnHydrated(cb: () => void): () => void {
+  if (hydrationSettled) {
+    cb();
+    return () => {};
+  }
+  hydrationListeners.add(cb);
+  return () => {
+    hydrationListeners.delete(cb);
+  };
+}
+
+function markHydrated(): void {
+  hydrationSettled = true;
+  for (const cb of hydrationListeners) {
+    try {
+      cb();
+    } catch {
+      // A misbehaving listener must not break the boot sequence.
+    }
+  }
+  hydrationListeners.clear();
+}
+
 // Boot-strap: pull the authoritative remote state into localStorage and push
 // any local-only keys up so first-run data migrates to the cloud.
 export async function bloomHydrateFromServer(): Promise<void> {
+  try {
+    await hydrateFromServer();
+  } finally {
+    // finally, not a trailing statement: the page's first paint is gated on
+    // this promise settling, and a merge step that threw would otherwise leave
+    // every bloomOnHydrated() listener waiting forever.
+    markHydrated();
+  }
+}
+
+async function hydrateFromServer(): Promise<void> {
   if (typeof window === "undefined") return;
   let remote: Record<string, string> = {};
   try {

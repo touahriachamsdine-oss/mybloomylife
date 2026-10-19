@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from "react";
 import localesData from "../app/locales.json";
-import { BLOOM_KEYS, bloomGetJson, bloomSetJson, bloomGetRaw, bloomSetRaw, bloomRemove, bloomSyncNow, runStorageMigrations } from "@/lib/storage";
+import { BLOOM_KEYS, bloomGetJson, bloomSetJson, bloomSetJsonLocal, bloomGetRaw, bloomSetRaw, bloomRemove, bloomSyncNow, bloomOnHydrated, runStorageMigrations } from "@/lib/storage";
 import { verifyPassword, createCredential, seedDemoAccounts, isDemoAccountEmail, isUserRole, isSelfRegisterRole, type UserRole, type SelfRegisterRole } from "@/lib/auth";
 import {
   appendMoodLog,
@@ -515,6 +515,22 @@ function saveKidUsedMs(child: string, usedMs: number) {
   bloomSetJson(BLOOM_KEYS.kidTime, map);
 }
 
+// The one place a stored account's role is validated on the way in.
+//
+// Migrates the legacy "student" role to "youth". "teacher" is deliberately NOT
+// rewritten to "admin": that rewrite was a one-way, unrecoverable merge, since
+// once an account was rewritten on load it became indistinguishable from a real
+// administrator. Unknown role strings fall back to "youth" rather than being
+// trusted, so a corrupt row can never grant a staff-level screen.
+function normalizeAccountRoles(users: RegisteredUser[]): RegisteredUser[] {
+  return users.map(u => {
+    const raw = String(u.role);
+    if (raw === "student") return { ...u, role: "youth" as const };
+    if (isUserRole(raw)) return { ...u, role: raw };
+    return { ...u, role: "youth" as const };
+  });
+}
+
 export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Global States
   const [appLanguage, setAppLanguageState] = useState<AppLanguage>("ar");
@@ -931,30 +947,27 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedHelpRequests) setHelpRequestsState(savedHelpRequests);
     if (savedDailyChallenges && savedDailyChallenges.date === new Date().toISOString().slice(0, 10)) setDailyChallengesState({ ...savedDailyChallenges, history: savedDailyChallenges.history ?? {} });
     if (savedUsers && savedUsers.length > 0) {
-      // Migrate the legacy "student" role to "youth".
-      //
-      // "teacher" is NO LONGER rewritten to "admin". That rewrite was a
-      // one-way, unrecoverable merge: once an account was rewritten on load it
-      // became indistinguishable from a real administrator, so restoring the
-      // role here could not bring those accounts back. Teacher is a real role
-      // again and existing teacher rows are preserved as-is.
-      //
-      // Unknown role strings fall back to "youth" rather than being trusted,
-      // so a corrupt row cannot grant staff-level access.
-      const parsedUsers = savedUsers.map(u => {
-        const raw = String(u.role);
-        if (raw === "student") return { ...u, role: "youth" as const };
-        if (isUserRole(raw)) return { ...u, role: raw };
-        return { ...u, role: "youth" as const };
-      });
-      setRegisteredUsers(parsedUsers);
+      setRegisteredUsers(normalizeAccountRoles(savedUsers));
     } else if (DEMO_SEEDING_ENABLED) {
       // First run (development only): seed the demo accounts, with passwords
       // hashed before storage. In production this branch is skipped entirely,
       // so no known-password account is ever created in the real user list.
       seedDemoAccounts().then(seeded => {
-        setRegisteredUsers(seeded);
-        bloomSetJson(BLOOM_KEYS.registeredUsers, seeded);
+        // Merge, never replace. Hashing 16 credentials with scrypt is slow, so
+        // hydration can land while it runs - and this used to then overwrite
+        // both storage and React state with the fixture alone, then push that
+        // truncated list to the shared store. That is how every account not in
+        // DEMO_ACCOUNTS (real registrations) got deleted.
+        const current = bloomGetJson<RegisteredUser[] | null>(BLOOM_KEYS.registeredUsers, null) ?? [];
+        const byEmail = new Map(current.map(u => [u.email.toLowerCase().trim(), u]));
+        for (const account of seeded) {
+          const key = account.email.toLowerCase().trim();
+          if (!byEmail.has(key)) byEmail.set(key, account);
+        }
+        const merged = Array.from(byEmail.values());
+        setRegisteredUsers(merged);
+        // Local-only: the fixture must never author the shared account list.
+        bloomSetJsonLocal(BLOOM_KEYS.registeredUsers, merged);
       });
     }
     if (savedLinkCodes) setFamilyLinkCodes(savedLinkCodes);
@@ -996,6 +1009,21 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     if (savedSupport) setSupportMessagesState(savedSupport);
+  }, []);
+
+  // Re-read the account list once the server sync settles.
+  //
+  // BloomProvider lives in the layout, ABOVE the page whose first paint is
+  // gated on bloomHydrateFromServer(), so the effect above reads localStorage
+  // before hydration has written anything. That left `registeredUsers` empty on
+  // a cold load, and login() - which resolves credentials from this state -
+  // rejected valid accounts until the page was reloaded. Which credentials
+  // failed was pure timing, so the failures looked random.
+  useEffect(() => {
+    return bloomOnHydrated(() => {
+      const stored = bloomGetJson<RegisteredUser[] | null>(BLOOM_KEYS.registeredUsers, null);
+      if (stored && stored.length > 0) setRegisteredUsers(normalizeAccountRoles(stored));
+    });
   }, []);
 
   // Update HTML dir and lang attributes on changes
