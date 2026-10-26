@@ -165,9 +165,17 @@ const DEMO_SEEDING_ENABLED = process.env.NODE_ENV !== "production";
 // therefore a per-deployment decision that is baked in at build time. Leave it
 // unset on any deployment that holds real student data: the demo psychologist
 // and admin accounts can read every row in the shared database.
+//
+// The public demo deployment is the one production host where those logins are
+// meant to work. Matching the hostname keeps every other deployment - and the
+// local production build the login harness checks - refusing them without
+// dashboard access to set the flag.
+const DEMO_LOGIN_HOSTS = new Set(["mybloomylife.vercel.app"]);
 const DEMO_LOGINS_ENABLED =
   process.env.NODE_ENV !== "production" ||
-  process.env.NEXT_PUBLIC_ALLOW_DEMO_LOGINS === "1";
+  process.env.NEXT_PUBLIC_ALLOW_DEMO_LOGINS === "1" ||
+  (typeof window !== "undefined" &&
+    DEMO_LOGIN_HOSTS.has(window.location.hostname));
 function isoDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -1050,8 +1058,9 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // The demo fixture has published passwords. Any demo account that reached
     // the live user list before the seeding gate existed is still a working
-    // credential, so the identity is refused in production unless the
-    // deployment opted in with NEXT_PUBLIC_ALLOW_DEMO_LOGINS=1.
+    // credential, so the identity is refused in production unless this is the
+    // public demo host or the deployment opted in with
+    // NEXT_PUBLIC_ALLOW_DEMO_LOGINS=1.
     if (!DEMO_LOGINS_ENABLED && isDemoAccountEmail(emailLower)) {
       console.warn(`[login] refused demo account in production: ${emailLower}`);
       return false;
