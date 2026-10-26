@@ -100,7 +100,8 @@ export async function createCredential(password: string): Promise<StoredCredenti
 // registration flow. Only their hashes are ever persisted.
 //
 // These have published, trivial passwords, so they are treated as a
-// development fixture and refused in production - see isDemoAccountEmail.
+// development fixture and refused in production unless that deployment opts in
+// with NEXT_PUBLIC_ALLOW_DEMO_LOGINS=1 - see isDemoAccountEmail.
 export const DEMO_ACCOUNTS: DemoAccount[] = [
   { email: "youth@example.com", name: "Sara", role: "youth", password: "123" },
   { email: "parent@example.com", name: "Abu Sara", role: "parent", password: "1234" },
@@ -120,10 +121,10 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   //
   // These deliberately live in DEMO_ACCOUNTS rather than in a separate list:
   // this is the array isDemoAccountEmail() checks (so production refuses them
-  // even if a row already exists in the database) and the array ensureDemoUsers()
-  // seeds from (so they appear on a fresh dev run). Keeping them out of
-  // DEMO_ACCOUNTS would make them ordinary accounts with a published password
-  // and no production gate at all.
+  // by default even if a row already exists in the database) and the array
+  // ensureDemoUsers() seeds from (so they appear on a fresh dev run). Keeping
+  // them out of DEMO_ACCOUNTS would make them ordinary accounts with a
+  // published password and no production gate at all.
   { email: "test.youth@example.com", name: "Test Youth", role: "youth", password: "test1234" },
   { email: "test.parent@example.com", name: "Test Parent", role: "parent", password: "test1234" },
   { email: "test.teacher@example.com", name: "Test Teacher", role: "teacher", password: "test1234" },

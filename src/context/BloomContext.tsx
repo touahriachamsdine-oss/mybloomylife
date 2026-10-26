@@ -158,6 +158,16 @@ const DEFAULT_SECTIONS: ClassSection[] = [
 // first load - and pushed them to the shared database for every other user.
 // In production an empty key now stays empty and the UI shows an empty state.
 const DEMO_SEEDING_ENABLED = process.env.NODE_ENV !== "production";
+
+// Demo logins are a fixture with published passwords, so they are refused in
+// production unless that deployment explicitly opts in. The flag is
+// NEXT_PUBLIC_ because login runs in the browser; setting it in Vercel is
+// therefore a per-deployment decision that is baked in at build time. Leave it
+// unset on any deployment that holds real student data: the demo psychologist
+// and admin accounts can read every row in the shared database.
+const DEMO_LOGINS_ENABLED =
+  process.env.NODE_ENV !== "production" ||
+  process.env.NEXT_PUBLIC_ALLOW_DEMO_LOGINS === "1";
 function isoDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -1040,9 +1050,9 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // The demo fixture has published passwords. Any demo account that reached
     // the live user list before the seeding gate existed is still a working
-    // credential, so the identity is refused outright in production rather
-    // than relying on those rows having been cleaned up.
-    if (process.env.NODE_ENV === "production" && isDemoAccountEmail(emailLower)) {
+    // credential, so the identity is refused in production unless the
+    // deployment opted in with NEXT_PUBLIC_ALLOW_DEMO_LOGINS=1.
+    if (!DEMO_LOGINS_ENABLED && isDemoAccountEmail(emailLower)) {
       console.warn(`[login] refused demo account in production: ${emailLower}`);
       return false;
     }
