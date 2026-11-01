@@ -1035,18 +1035,31 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedSupport) setSupportMessagesState(savedSupport);
   }, []);
 
-  // Re-read the account list once the server sync settles.
+  // Re-read the state the admin overview depends on once the server sync
+  // settles.
   //
   // BloomProvider lives in the layout, ABOVE the page whose first paint is
   // gated on bloomHydrateFromServer(), so the effect above reads localStorage
-  // before hydration has written anything. That left `registeredUsers` empty on
-  // a cold load, and login() - which resolves credentials from this state -
-  // rejected valid accounts until the page was reloaded. Which credentials
-  // failed was pure timing, so the failures looked random.
+  // before hydration has written anything. On a cold load the account list was
+  // empty and login() rejected valid credentials; only registeredUsers was
+  // patched for that. Every other key stayed at its empty initial value, so an
+  // admin opening the dashboard on a fresh device saw "no open help requests"
+  // and zeroed stats even though the database held them. Re-read the overview's
+  // inputs here, after hydration has merged the remote state into localStorage.
   useEffect(() => {
     return bloomOnHydrated(() => {
       const stored = bloomGetJson<RegisteredUser[] | null>(BLOOM_KEYS.registeredUsers, null);
       if (stored && stored.length > 0) setRegisteredUsers(normalizeAccountRoles(stored));
+      const storedHelp = bloomGetJson<HelpRequest[] | null>(BLOOM_KEYS.helpRequests, null);
+      if (storedHelp) setHelpRequestsState(storedHelp);
+      const storedGrades = bloomGetJson<Record<string, StudentGrades> | null>(BLOOM_KEYS.studentGrades, null);
+      if (storedGrades) setStudentGradesState(storedGrades);
+      const storedMoodLogs = bloomGetJson<MoodLog[] | null>(BLOOM_KEYS.moodLogs, null);
+      if (storedMoodLogs) setMoodLogsState(normalizeMoodLogs(storedMoodLogs));
+      const storedLevels = bloomGetJson<Record<string, AlgerianLevel | null> | null>(BLOOM_KEYS.studentLevels, null);
+      if (storedLevels) setStudentLevelsState(storedLevels);
+      const storedAssignments = bloomGetJson<Record<string, StudentAssignment> | null>(BLOOM_KEYS.studentAssignments, null);
+      if (storedAssignments) setStudentAssignmentsState(storedAssignments);
     });
   }, []);
 
