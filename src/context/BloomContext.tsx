@@ -272,6 +272,10 @@ export interface HelpRequest {
   student: string;
   message: string;
   timestamp: string;
+  // Set when an admin marks the request handled. The record is kept so the
+  // audit trail survives, but it drops out of the admin inbox and the parent
+  // alert list.
+  resolvedAt?: string;
 }
 
 export interface DailyChallengeTask {
@@ -440,9 +444,10 @@ export interface BloomContextType {
   removePriorityTask: (id: string) => void;
   togglePriorityTask: (id: string) => void;
 
-  // Student help requests (surfaced to parents)
+  // Student help requests (surfaced to parents and the admin inbox)
   helpRequests: HelpRequest[];
   requestHelp: (message: string) => void;
+  resolveHelpRequest: (id: string) => void;
 
   // Daily learning challenges
   dailyChallenges: DailyChallengeState;
@@ -858,8 +863,9 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     });
 
-    // 4) Student asked for help
-    helpRequests.forEach((r) => {
+    // 4) Student asked for help. A request the admin already handled must not
+    // keep firing the parent alert.
+    helpRequests.filter((r) => !r.resolvedAt).forEach((r) => {
       alerts.push({
         id: `help-${r.id}`,
         type: "help_request",
@@ -1453,6 +1459,15 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     bloomSetJson(BLOOM_KEYS.helpRequests, next);
   };
 
+  const resolveHelpRequest = (id: string) => {
+    if (!helpRequests.some((r) => r.id === id && !r.resolvedAt)) return;
+    const next = helpRequests.map((r) =>
+      r.id === id ? { ...r, resolvedAt: new Date().toISOString() } : r
+    );
+    setHelpRequestsState(next);
+    bloomSetJson(BLOOM_KEYS.helpRequests, next);
+  };
+
   // ---- Daily learning challenges ----
   const toggleDailyChallenge = (taskId: string) => {
     const today = new Date().toISOString().slice(0, 10);
@@ -1792,6 +1807,7 @@ export const BloomProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         togglePriorityTask,
         helpRequests,
         requestHelp,
+        resolveHelpRequest,
         dailyChallenges,
         toggleDailyChallenge,
         challengeStreak,

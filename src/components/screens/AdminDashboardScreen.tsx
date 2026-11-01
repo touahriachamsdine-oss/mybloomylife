@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useBloom, AppLanguage, AlgerianCycle, StudentGrades, TermId, ALL_TERMS, RegisteredUser, AlgerianLevel, StudentAssignment, MoodLog } from "@/context/BloomContext";
-import { TrendingUp, Gamepad, Heart, Plus, Check, X, Award, Sparkles, Shield, ChevronRight, Activity, Users } from "lucide-react";
+import { useBloom, AppLanguage, AlgerianCycle, StudentGrades, TermId, ALL_TERMS, RegisteredUser, AlgerianLevel, StudentAssignment, MoodLog, HelpRequest } from "@/context/BloomContext";
+import { TrendingUp, Gamepad, Heart, Plus, Check, X, Award, Sparkles, Shield, ChevronRight, Activity, Users, LifeBuoy } from "lucide-react";
 import { dayKey, isNegativeMood } from "@/lib/mood";
 
 function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[]) => string }) {
@@ -26,7 +26,9 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
     updateTermGrade,
     createStudentAccount,
     regenerateFamilyCode,
-    familyLinkCodes
+    familyLinkCodes,
+    helpRequests,
+    resolveHelpRequest
   } = useBloom();
 
   // Admin sub-tab state
@@ -307,6 +309,8 @@ function AdminDashboardScreen({ t }: { t: (k: string, ...a: (string | number)[])
           studentLevels={studentLevels}
           studentAssignments={studentAssignments}
           moodLogs={moodLogs}
+          helpRequests={helpRequests}
+          onResolveHelpRequest={resolveHelpRequest}
           onOpenStudents={() => setActiveTab("students")}
           onOpenUsers={() => setActiveTab("users")}
         />
@@ -848,6 +852,8 @@ function OverviewTab({
   studentLevels,
   studentAssignments,
   moodLogs,
+  helpRequests,
+  onResolveHelpRequest,
   onOpenStudents,
   onOpenUsers
 }: {
@@ -857,6 +863,8 @@ function OverviewTab({
   studentLevels: Record<string, AlgerianLevel | null>;
   studentAssignments: Record<string, StudentAssignment>;
   moodLogs: MoodLog[];
+  helpRequests: HelpRequest[];
+  onResolveHelpRequest: (id: string) => void;
   onOpenStudents: () => void;
   onOpenUsers: () => void;
 }) {
@@ -879,6 +887,12 @@ function OverviewTab({
   // this sort a silent no-op and left the list in arbitrary order.
   const recentMoods = [...moodLogs].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 6);
   const negativeMoods = recentMoods.filter(m => isNegativeMood(m.mood));
+  // Newest first, and only requests still waiting for an admin. Resolved rows
+  // stay in the database as an audit trail but leave both this inbox and the
+  // parent alert list.
+  const openHelpRequests = helpRequests
+    .filter(r => !r.resolvedAt)
+    .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
 
   const stat = (val: string | number, label: string, color: string) => (
     <div className="flex flex-col items-center p-3 rounded-2xl bg-surface border border-border-custom shadow-xs">
@@ -895,6 +909,44 @@ function OverviewTab({
         {stat(parents, t("admin_stat_parents"), "text-emerald-500")}
         {stat(psychologists, t("role_psychologist"), "text-amber-600")}
         {stat(teachers, t("role_admin"), "text-indigo-500")}
+      </div>
+
+      {/* Help requests from the support screen. These used to be written to the
+          database and only ever read by the parent alert list, so the admin
+          never saw them. */}
+      <div className="p-4 rounded-3xl bg-surface border border-border-custom shadow-xs flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="bg-amber-500/10 text-amber-600 p-1.5 rounded-lg"><LifeBuoy size={14} /></span>
+            <h3 className="font-black text-xs text-text-primary uppercase tracking-wide">{t("admin_requests_title")}</h3>
+          </div>
+          {openHelpRequests.length > 0 && (
+            <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+              {openHelpRequests.length}
+            </span>
+          )}
+        </div>
+        {openHelpRequests.length === 0 ? (
+          <p className="text-xs text-text-secondary">{t("admin_requests_empty")}</p>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {openHelpRequests.map(r => (
+              <div key={r.id} className="p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/20 flex flex-col gap-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-black text-text-primary truncate">{r.student}</span>
+                  <span className="text-[9px] text-text-secondary shrink-0">{r.timestamp.slice(0, 16).replace("T", " ")}</span>
+                </div>
+                <p className="text-[11px] text-text-primary break-words">{r.message}</p>
+                <button
+                  onClick={() => onResolveHelpRequest(r.id)}
+                  className="self-start flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-500/10 px-2 py-1 rounded-lg hover:bg-emerald-500/20 transition-all"
+                >
+                  <Check size={11} /> {t("admin_requests_resolve")}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Grade snapshot */}
